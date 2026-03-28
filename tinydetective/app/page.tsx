@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { AnalyticsPanel } from "@/components/dashboard/analytics-panel";
 import { DashboardProjectsPanel } from "@/components/dashboard/projects-panel";
 import { DashboardSheet } from "@/components/dashboard/dashboard-sheet";
 import { LivePrPreviewPanel } from "@/components/preview/live-pr-preview-panel";
@@ -256,7 +257,7 @@ export default function Home() {
   const [scale, setScale] = useState(0.85);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [activeSheet, setActiveSheet] = useState<
-    "dashboard" | "pr-preview" | "infra-preview" | null
+    "dashboard" | "analytics" | "pr-preview" | "infra-preview" | null
   >(null);
 
   useEffect(() => {
@@ -413,7 +414,7 @@ export default function Home() {
             z={15}
             cls="office-monitor office-monitor-c"
             label="Analytics"
-            onClick={() => setActiveSheet("dashboard")}
+            onClick={() => setActiveSheet("analytics")}
           />
         ) : (
           <LinkedSprite
@@ -577,6 +578,19 @@ export default function Home() {
           eyebrow="Office Popup"
         >
           <DashboardProjectsPanel />
+        </DashboardSheet>
+      ) : null}
+
+      {isLoggedIn && activeSheet === "analytics" ? (
+        <DashboardSheet
+          onClose={() => setActiveSheet(null)}
+          fullPageHref="/dashboard/analytics"
+          fullPageLabel="Open Full Analytics"
+          title="Analytics Workspace"
+          eyebrow="Metrics Popup"
+          maxWidthClassName="max-w-[72rem]"
+        >
+          <AnalyticsPanel />
         </DashboardSheet>
       ) : null}
 
