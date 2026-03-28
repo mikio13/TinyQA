@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin-client";
 import { Octokit } from "@octokit/rest";
-import { ChatOpenAI } from "@langchain/openai";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { SystemMessage, HumanMessage } from "@langchain/core/messages";
 import type { Project, WebhookPayload, TinyFishRunStatus } from "@/lib/types";
 
-// ── LangChain LLM — swap provider by changing this single block ──
-const model = new ChatOpenAI({
-  model: "gpt-4o",
-  apiKey: process.env.OPENAI_API_KEY,
+const model = new ChatGoogleGenerativeAI({
+  model: "gemini-2.5-flash-lite",
+  apiKey: process.env.GEMINI_API_KEY,
 });
 
 /**
@@ -27,8 +26,20 @@ const model = new ChatOpenAI({
 export async function POST(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const projectId = searchParams.get("project_id");
+  const event = request.headers.get("x-github-event");
+  const delivery = request.headers.get("x-github-delivery");
+  const contentType = request.headers.get("content-type");
+
+  console.log("[TinyDetective Webhook] Incoming request", {
+    delivery,
+    event,
+    projectId,
+    contentType,
+    url: request.url,
+  });
 
   if (!projectId) {
+    console.error("[TinyDetective Webhook] Missing project_id");
     return NextResponse.json(
       { error: "project_id is required" },
       { status: 400 }
@@ -39,7 +50,8 @@ export async function POST(request: NextRequest) {
   let payload: WebhookPayload;
   try {
     payload = await request.json();
-  } catch {
+  } catch (error) {
+    console.error("[TinyDetective Webhook] Invalid JSON payload", error);
     return NextResponse.json(
       { error: "Invalid JSON payload" },
       { status: 400 }
@@ -49,12 +61,20 @@ export async function POST(request: NextRequest) {
   // Only process pull_request events with relevant actions
   const action = payload.action;
   if (!action || !["opened", "synchronize", "reopened"].includes(action)) {
+    console.log("[TinyDetective Webhook] Ignored action", { action, event });
     return NextResponse.json({ message: "Ignored event action" });
   }
 
   if (!payload.pull_request) {
+    console.log("[TinyDetective Webhook] Ignored non-PR payload", { event });
     return NextResponse.json({ message: "Not a pull_request event" });
   }
+
+  console.log("[TinyDetective Webhook] Accepted pull request event", {
+    action,
+    prNumber: payload.pull_request.number,
+    repository: payload.repository.full_name,
+  });
 
   // Return 200 immediately — process async
   // Using a fire-and-forget pattern for the long-running pipeline

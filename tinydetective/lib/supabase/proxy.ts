@@ -7,6 +7,11 @@ export async function updateSession(request: NextRequest) {
     request,
   });
 
+  // Public webhook endpoint must stay reachable by GitHub without auth.
+  if (request.nextUrl.pathname.startsWith("/api/webhook")) {
+    return supabaseResponse;
+  }
+
   // If the env vars are not set, skip proxy check. You can remove this
   // once you setup the project.
   if (!hasEnvVars) {
