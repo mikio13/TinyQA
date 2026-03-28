@@ -203,10 +203,10 @@
     "@google/generative-ai" "^0.24.0"
     uuid "^11.1.0"
 
-"@next/env@16.2.1":
-  version "16.2.1"
-  resolved "https://registry.npmjs.org/@next/env/-/env-16.2.1.tgz"
-  integrity sha512-n8P/HCkIWW+gVal2Z8XqXJ6aB3J0tuM29OcHpCsobWlChH/SITBs1DFBk/HajgrwDkqqBXPbuUuzgDvUekREPg==
+"@next/env@15.3.1":
+  version "15.3.1"
+  resolved "https://registry.npmjs.org/@next/env/-/env-15.3.1.tgz"
+  integrity sha512-cwK27QdzrMblHSn9DZRV+DQscHXRuJv6MydlJRpFSqJWZrTYMLzKDeyueJNN9MGd8NNiUKzDQADAf+dMLXX7YQ==
 
 "@next/eslint-plugin-next@15.3.1":
   version "15.3.1"
@@ -215,10 +215,10 @@
   dependencies:
     fast-glob "3.3.1"
 
-"@next/swc-darwin-arm64@16.2.1":
-  version "16.2.1"
-  resolved "https://registry.npmjs.org/@next/swc-darwin-arm64/-/swc-darwin-arm64-16.2.1.tgz"
-  integrity sha512-BwZ8w8YTaSEr2HIuXLMLxIdElNMPvY9fLqb20LX9A9OMGtJilhHLbCL3ggyd0TwjmMcTxi0XXt+ur1vWUoxj2Q==
+"@next/swc-darwin-arm64@15.3.1":
+  version "15.3.1"
+  resolved "https://registry.npmjs.org/@next/swc-darwin-arm64/-/swc-darwin-arm64-15.3.1.tgz"
+  integrity sha512-hjDw4f4/nla+6wysBL07z52Gs55Gttp5Bsk5/8AncQLJoisvTBP0pRIBK/B16/KqQyH+uN4Ww8KkcAqJODYH3w==
 
 "@nodelib/fs.scandir@2.1.5":
   version "2.1.5"
@@ -650,7 +650,7 @@
     tslib "2.8.1"
     ws "^8.18.2"
 
-"@supabase/ssr@latest":
+"@supabase/ssr@0.9.0":
   version "0.9.0"
   resolved "https://registry.npmjs.org/@supabase/ssr/-/ssr-0.9.0.tgz"
   integrity sha512-UFY6otYV3yqCgV+AyHj80vNkTvbf1Gas2LW4dpbQ4ap6p6v3eB2oaDfcI99jsuJzwVBCFU4BJI+oDYyhNk1z0Q==
@@ -665,7 +665,7 @@
     iceberg-js "^0.8.1"
     tslib "2.8.1"
 
-"@supabase/supabase-js@^2.97.0", "@supabase/supabase-js@latest":
+"@supabase/supabase-js@^2.97.0", "@supabase/supabase-js@2.100.1":
   version "2.100.1"
   resolved "https://registry.npmjs.org/@supabase/supabase-js/-/supabase-js-2.100.1.tgz"
   integrity sha512-CAeFm5sfX8sbTzxoxRafhohreIzl9a7R6qHTck3MrgTqm5M5g/u0IHfEKYzI9w/17r8NINl8UZrw2i08wrO7Iw==
@@ -675,6 +675,11 @@
     "@supabase/postgrest-js" "2.100.1"
     "@supabase/realtime-js" "2.100.1"
     "@supabase/storage-js" "2.100.1"
+
+"@swc/counter@0.1.3":
+  version "0.1.3"
+  resolved "https://registry.npmjs.org/@swc/counter/-/counter-0.1.3.tgz"
+  integrity sha512-e2BR4lsJkkRlKZ/qCHPw9ZaSxc0MVUd7gtbtaB7aMvHeJVYe8sOB8DBZkP2DtISHGSku9sCK6T6cnY0CtXrOCQ==
 
 "@swc/helpers@0.5.15":
   version "0.5.15"
@@ -1041,7 +1046,7 @@ base64-js@^1.5.1:
   resolved "https://registry.npmjs.org/base64-js/-/base64-js-1.5.1.tgz"
   integrity sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==
 
-baseline-browser-mapping@^2.9.0, baseline-browser-mapping@^2.9.19:
+baseline-browser-mapping@^2.9.0:
   version "2.10.11"
   resolved "https://registry.npmjs.org/baseline-browser-mapping/-/baseline-browser-mapping-2.10.11.tgz"
   integrity sha512-DAKrHphkJyiGuau/cFieRYhcTFeK/lBuD++C7cZ6KZHbMhBrisoi+EvhQ5RZrIfV5qwsW8kgQ07JIC+MDJRAhg==
@@ -1088,6 +1093,13 @@ browserslist@^4.28.1, "browserslist@>= 4.21.0":
     electron-to-chromium "^1.5.263"
     node-releases "^2.0.27"
     update-browserslist-db "^1.2.0"
+
+busboy@1.6.0:
+  version "1.6.0"
+  resolved "https://registry.npmjs.org/busboy/-/busboy-1.6.0.tgz"
+  integrity sha512-8SFQbg/0hQ9xy3UNTB0YEnsNBbWfhf7RtnzpL7TkBiTBRfrQ9Fxcnz7VJsleJpyp6rVLvXiuORqjlHi5q+PYuA==
+  dependencies:
+    streamsearch "^1.1.0"
 
 call-bind-apply-helpers@^1.0.0, call-bind-apply-helpers@^1.0.1, call-bind-apply-helpers@^1.0.2:
   version "1.0.2"
@@ -2436,27 +2448,28 @@ next-themes@^0.4.6:
   resolved "https://registry.npmjs.org/next-themes/-/next-themes-0.4.6.tgz"
   integrity sha512-pZvgD5L0IEvX5/9GWyHMf3m8BKiVQwsCMHfoFosXtXBMnaS0ZnIJ9ST4b4NqLVKDEm8QBxoNNGNaBv2JNF6XNA==
 
-next@latest:
-  version "16.2.1"
-  resolved "https://registry.npmjs.org/next/-/next-16.2.1.tgz"
-  integrity sha512-VaChzNL7o9rbfdt60HUj8tev4m6d7iC1igAy157526+cJlXOQu5LzsBXNT+xaJnTP/k+utSX5vMv7m0G+zKH+Q==
+next@15.3.1:
+  version "15.3.1"
+  resolved "https://registry.npmjs.org/next/-/next-15.3.1.tgz"
+  integrity sha512-8+dDV0xNLOgHlyBxP1GwHGVaNXsmp+2NhZEYrXr24GWLHtt27YrBPbPuHvzlhi7kZNYjeJNR93IF5zfFu5UL0g==
   dependencies:
-    "@next/env" "16.2.1"
+    "@next/env" "15.3.1"
+    "@swc/counter" "0.1.3"
     "@swc/helpers" "0.5.15"
-    baseline-browser-mapping "^2.9.19"
+    busboy "1.6.0"
     caniuse-lite "^1.0.30001579"
     postcss "8.4.31"
     styled-jsx "5.1.6"
   optionalDependencies:
-    "@next/swc-darwin-arm64" "16.2.1"
-    "@next/swc-darwin-x64" "16.2.1"
-    "@next/swc-linux-arm64-gnu" "16.2.1"
-    "@next/swc-linux-arm64-musl" "16.2.1"
-    "@next/swc-linux-x64-gnu" "16.2.1"
-    "@next/swc-linux-x64-musl" "16.2.1"
-    "@next/swc-win32-arm64-msvc" "16.2.1"
-    "@next/swc-win32-x64-msvc" "16.2.1"
-    sharp "^0.34.5"
+    "@next/swc-darwin-arm64" "15.3.1"
+    "@next/swc-darwin-x64" "15.3.1"
+    "@next/swc-linux-arm64-gnu" "15.3.1"
+    "@next/swc-linux-arm64-musl" "15.3.1"
+    "@next/swc-linux-x64-gnu" "15.3.1"
+    "@next/swc-linux-x64-musl" "15.3.1"
+    "@next/swc-win32-arm64-msvc" "15.3.1"
+    "@next/swc-win32-x64-msvc" "15.3.1"
+    sharp "^0.34.1"
 
 node-exports-info@^1.6.0:
   version "1.6.0"
@@ -2947,7 +2960,7 @@ set-proto@^1.0.0:
     es-errors "^1.3.0"
     es-object-atoms "^1.0.0"
 
-sharp@^0.34.5:
+sharp@^0.34.1:
   version "0.34.5"
   resolved "https://registry.npmjs.org/sharp/-/sharp-0.34.5.tgz"
   integrity sha512-Ou9I5Ft9WNcCbXrU9cMgPBcCK8LiwLqcbywW3t4oDV37n1pzpuNLsYiAV8eODnjbtQlSDwZ2cUEeQz4E54Hltg==
@@ -3055,6 +3068,11 @@ stop-iteration-iterator@^1.1.0:
   dependencies:
     es-errors "^1.3.0"
     internal-slot "^1.1.0"
+
+streamsearch@^1.1.0:
+  version "1.1.0"
+  resolved "https://registry.npmjs.org/streamsearch/-/streamsearch-1.1.0.tgz"
+  integrity sha512-Mcc5wHehp9aXz1ax6bZUyY5afg9u2rv5cqQI3mRrYkGC8rW2hM02jWuwjtL++LS5qinSyhj2QfLyNsuc+VsExg==
 
 string.prototype.includes@^2.0.1:
   version "2.0.1"
