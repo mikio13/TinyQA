@@ -64,5 +64,68 @@
   }
   body {
     @apply bg-background text-foreground;
+    min-height: 100vh;
   }
+}
+
+@layer utilities {
+  /* Crisp pixel-art rendering */
+  .pixelated {
+    image-rendering: pixelated;
+  }
+
+  /* Monitor screen flicker */
+  .office-monitor {
+    animation: screen-blink 2.8s steps(2, jump-none) infinite;
+  }
+  .office-monitor-a { animation-delay: 0s; }
+  .office-monitor-b { animation-delay: 0.6s; }
+  .office-monitor-c { animation-delay: 1.2s; }
+  .office-monitor-d { animation-delay: 0.9s; }
+
+  /* Character animations */
+  .office-agent {
+    transform-origin: center bottom;
+  }
+  .office-agent-walk {
+    animation: agent-roam 8.8s linear infinite;
+  }
+  .office-agent-meeting {
+    animation: agent-meeting 4.2s ease-in-out infinite 0.4s;
+  }
+
+  /* Sprite-sheet idle bob */
+  .agent-bob {
+    animation: agent-bob 2.6s ease-in-out infinite;
+  }
+  .agent-bob-delayed {
+    animation: agent-bob 2.6s ease-in-out infinite 0.8s;
+  }
+}
+
+/* ── Keyframes ─────────────────────────────────────────── */
+
+@keyframes screen-blink {
+  0% { opacity: 1; }
+  48% { opacity: 1; }
+  52% { opacity: 0.7; }
+  58% { opacity: 1; }
+  100% { opacity: 1; }
+}
+
+@keyframes agent-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+@keyframes agent-roam {
+  0%, 100% { transform: translate(0, 0); }
+  28% { transform: translate(-52px, -32px); }
+  56% { transform: translate(24px, 28px); }
+  82% { transform: translate(-34px, 56px); }
+}
+
+@keyframes agent-meeting {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translateY(-3px); }
 }

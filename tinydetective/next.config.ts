@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  distDir: ".next-local",
+  cacheComponents: true,
+  turbopack: {
+    root: process.cwd(),
+  },
 };
 
 export default nextConfig;

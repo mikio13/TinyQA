@@ -1,6 +1,7 @@
 import { AuthButton } from "@/components/auth-button";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { ThemeSwitcher } from "@/components/theme-switcher";
+import { hasEnvVars } from "@/lib/utils";
 import Link from "next/link";
 import { Suspense } from "react";
 
@@ -22,9 +23,18 @@ export default function DashboardLayout({
                 </span>
               </Link>
             </div>
-            <Suspense>
-              <AuthButton />
-            </Suspense>
+            {hasEnvVars ? (
+              <Suspense>
+                <AuthButton />
+              </Suspense>
+            ) : (
+              <Link
+                href="/"
+                className="rounded-full border border-foreground/10 px-4 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted"
+              >
+                Configure Supabase
+              </Link>
+            )}
           </div>
         </nav>
         <DashboardNav />

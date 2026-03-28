@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /Users/davidkumar/Documents/GitHub/pixel-agents/src -type d -name *asset* -o -type d -name *image* -o -type d -name *sprite* -o -type d -name *tile*)",
+      "Bash(find /Users/davidkumar/Documents/GitHub/pixel-agents -name *.png -o -name manifest.json)",
+      "Bash(cat /Users/davidkumar/Documents/GitHub/pixel-agents/webview-ui/public/assets/furniture/*/manifest.json)",
+      "Bash(for dir:*)",
+      "Bash(do echo:*)",
+      "Read(//Users/davidkumar/Documents/GitHub/TinyDetective/**)",
+      "Bash(done)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(kill 14241)",
+      "Bash(kill 73397)"
+    ]
+  }
+}
