@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import type { RunRecord } from "@/lib/types";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 const statusStyles: Record<string, string> = {
   passed: "text-emerald-300 border-emerald-500/20 bg-emerald-500/10",
@@ -11,6 +13,60 @@ const statusStyles: Record<string, string> = {
   running: "text-cyan-300 border-cyan-500/20 bg-cyan-500/10",
   queued: "text-white/70 border-white/15 bg-white/5",
 };
+
+function MarkdownResult({ content }: { content: string }) {
+  return (
+    <div className="mt-2 space-y-2 text-sm text-white/75">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          h1: ({ ...props }) => (
+            <h1 className="text-base font-semibold text-white" {...props} />
+          ),
+          h2: ({ ...props }) => (
+            <h2 className="text-sm font-semibold text-white" {...props} />
+          ),
+          h3: ({ ...props }) => (
+            <h3 className="text-sm font-semibold text-white" {...props} />
+          ),
+          p: ({ ...props }) => <p className="leading-6 text-white/75" {...props} />,
+          ul: ({ ...props }) => <ul className="list-disc space-y-1 pl-5" {...props} />,
+          ol: ({ ...props }) => <ol className="list-decimal space-y-1 pl-5" {...props} />,
+          li: ({ ...props }) => <li className="text-white/75" {...props} />,
+          a: ({ ...props }) => (
+            <a
+              className="text-cyan-300 underline underline-offset-2 hover:text-cyan-200"
+              target="_blank"
+              rel="noreferrer"
+              {...props}
+            />
+          ),
+          code: ({ ...props }) => (
+            <code
+              className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-xs text-cyan-200"
+              {...props}
+            />
+          ),
+          pre: ({ ...props }) => (
+            <pre
+              className="overflow-x-auto rounded-lg border border-white/10 bg-[#131a29] p-3 text-xs text-cyan-100"
+              {...props}
+            />
+          ),
+          blockquote: ({ ...props }) => (
+            <blockquote
+              className="border-l-2 border-white/20 pl-3 italic text-white/60"
+              {...props}
+            />
+          ),
+          hr: ({ ...props }) => <hr className="border-white/10" {...props} />,
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
+}
 
 export default function DashboardRunsPage() {
   const [runs, setRuns] = useState<RunRecord[]>([]);
@@ -100,9 +156,13 @@ export default function DashboardRunsPage() {
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-white/40">
                     Result
                   </p>
-                  <p className="mt-2 whitespace-pre-wrap text-sm text-white/70">
-                    {run.result_text ?? run.failure_reason ?? "No final result yet."}
-                  </p>
+                  <MarkdownResult
+                    content={
+                      run.result_text ??
+                      run.failure_reason ??
+                      "No final result yet."
+                    }
+                  />
                 </div>
               </div>
 
