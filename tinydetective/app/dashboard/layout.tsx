@@ -1,4 +1,5 @@
 import { AuthButton } from "@/components/auth-button";
+import { DashboardNav } from "@/components/dashboard-nav";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { hasEnvVars } from "@/lib/utils";
 import Link from "next/link";
@@ -36,6 +37,7 @@ export default function DashboardLayout({
             )}
           </div>
         </nav>
+        <DashboardNav />
         <div className="flex-1 flex flex-col w-full max-w-5xl p-5">
           {children}
         </div>
