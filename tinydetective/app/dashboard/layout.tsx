@@ -1,4 +1,5 @@
 import { AuthButton } from "@/components/auth-button";
+import { DashboardNav } from "@/components/dashboard-nav";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import Link from "next/link";
 import { Suspense } from "react";
@@ -26,6 +27,7 @@ export default function DashboardLayout({
             </Suspense>
           </div>
         </nav>
+        <DashboardNav />
         <div className="flex-1 flex flex-col w-full max-w-5xl p-5">
           {children}
         </div>
