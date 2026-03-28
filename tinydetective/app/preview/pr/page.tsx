@@ -7,7 +7,7 @@ export default async function PreviewPrPage({
 }) {
   const params = await searchParams;
   const target = params.project_id
-    ? `/dashboard/live-pr-preview?project_id=${params.project_id}`
-    : "/dashboard/live-pr-preview";
+    ? `/dashboard/live-preview?project_id=${params.project_id}`
+    : "/dashboard/live-preview";
   redirect(target);
 }

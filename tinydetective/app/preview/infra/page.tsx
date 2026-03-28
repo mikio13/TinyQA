@@ -7,7 +7,7 @@ export default async function PreviewInfraPage({
 }) {
   const params = await searchParams;
   const target = params.project_id
-    ? `/dashboard/live-infra-preview?project_id=${params.project_id}`
-    : "/dashboard/live-infra-preview";
+    ? `/dashboard/live-preview?project_id=${params.project_id}`
+    : "/dashboard/live-preview";
   redirect(target);
 }

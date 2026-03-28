@@ -51,6 +51,7 @@ export interface CreateRunInput {
 
 export interface UpdateRunInput {
   status?: RunStatus;
+  target_url?: string;
   tinyfish_run_id?: string | null;
   streaming_url?: string | null;
   goal?: string | null;
@@ -61,6 +62,17 @@ export interface UpdateRunInput {
   failure_reason?: string | null;
   started_at?: string | null;
   completed_at?: string | null;
+}
+
+export interface TinyFishSseEvent {
+  type?: string;
+  run_id?: string;
+  streaming_url?: string;
+  result?: unknown;
+  status?: string;
+  error?: string;
+  purpose?: string;
+  timestamp?: string;
 }
 
 export function mapRunRow(row: RunRow): RunRecord {
@@ -144,6 +156,51 @@ export function deriveWebhookRunStatus(reviewContent: string): RunStatus {
 
 export function deriveTinyFishRunStatus(status?: string): RunStatus {
   return status === "FAILED" ? "failed" : "passed";
+}
+
+export async function persistTinyFishLifecycleEvent(
+  runId: string,
+  event: TinyFishSseEvent
+): Promise<void> {
+  if (!event.type) {
+    return;
+  }
+
+  if (event.type === "STARTED") {
+    await updateRun(runId, {
+      tinyfish_run_id: event.run_id ?? null,
+      status: "running",
+      started_at: new Date().toISOString(),
+    });
+    return;
+  }
+
+  if (event.type === "STREAMING_URL") {
+    await updateRun(runId, {
+      streaming_url: event.streaming_url ?? null,
+    });
+    return;
+  }
+
+  if (event.type === "COMPLETE") {
+    await updateRun(runId, {
+      status: deriveTinyFishRunStatus(event.status),
+      result_text:
+        typeof event.result === "string"
+          ? event.result
+          : JSON.stringify(event.result ?? null, null, 2),
+      completed_at: new Date().toISOString(),
+    });
+    return;
+  }
+
+  if (event.type === "ERROR") {
+    await updateRun(runId, {
+      status: "error",
+      failure_reason: event.error ?? "TinyFish reported an error.",
+      completed_at: new Date().toISOString(),
+    });
+  }
 }
 
 export function buildInsights(runs: RunRecord[]): InsightsResponse {

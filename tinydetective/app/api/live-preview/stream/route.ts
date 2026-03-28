@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createRun, deriveTinyFishRunStatus, updateRun } from "@/lib/runs";
+import {
+  createRun,
+  persistTinyFishLifecycleEvent,
+  type TinyFishSseEvent,
+  updateRun,
+} from "@/lib/runs";
 import { createAdminClient } from "@/lib/supabase/admin-client";
 import { createClient } from "@/lib/supabase/server";
 import type { Project } from "@/lib/types";
@@ -148,16 +153,7 @@ export async function POST(request: NextRequest) {
               continue;
             }
 
-            let event:
-              | {
-                  type?: string;
-                  run_id?: string;
-                  streaming_url?: string;
-                  result?: unknown;
-                  status?: string;
-                  error?: string;
-                }
-              | undefined;
+            let event: TinyFishSseEvent | undefined;
 
             try {
               event = JSON.parse(rawPayload) as typeof event;
@@ -169,38 +165,7 @@ export async function POST(request: NextRequest) {
               continue;
             }
 
-            if (event.type === "STARTED") {
-              await updateRun(run.id, {
-                tinyfish_run_id: event.run_id ?? null,
-                status: "running",
-                started_at: new Date().toISOString(),
-              });
-            }
-
-            if (event.type === "STREAMING_URL") {
-              await updateRun(run.id, {
-                streaming_url: event.streaming_url ?? null,
-              });
-            }
-
-            if (event.type === "COMPLETE") {
-              await updateRun(run.id, {
-                status: deriveTinyFishRunStatus(event.status),
-                result_text:
-                  typeof event.result === "string"
-                    ? event.result
-                    : JSON.stringify(event.result ?? null, null, 2),
-                completed_at: new Date().toISOString(),
-              });
-            }
-
-            if (event.type === "ERROR") {
-              await updateRun(run.id, {
-                status: "error",
-                failure_reason: event.error ?? "TinyFish reported an error.",
-                completed_at: new Date().toISOString(),
-              });
-            }
+            await persistTinyFishLifecycleEvent(run.id, event);
           }
         }
       } catch (error) {

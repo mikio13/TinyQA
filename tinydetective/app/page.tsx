@@ -320,24 +320,24 @@ export default function Home() {
 
         {/* ═══════════════════════════════════════════
             MAIN OFFICE — Desk Row 1 (Workstations A & B)
-            The two important computer workstations
+            Primary product workstations
             ═══════════════════════════════════════════ */}
 
-        {/* Workstation A — live PR preview (clickable) */}
+        {/* Workstation A — projects (clickable) */}
         <Sprite src="/pixel-agents/assets/furniture/DESK/DESK_FRONT.png" alt="Desk A" x={100} y={150} w={144} h={96} z={14} />
-        <LinkedSprite src={pcSprite(1)} alt="PR Preview" x={148} y={150} w={48} h={96} z={15} cls="office-monitor office-monitor-a" href="/dashboard/live-pr-preview" label="PR Preview" />
+        <LinkedSprite src={pcSprite(1)} alt="Projects" x={148} y={150} w={48} h={96} z={15} cls="office-monitor office-monitor-a" href="/dashboard" label="Projects" />
         <Sprite src="/pixel-agents/assets/furniture/CUSHIONED_CHAIR/CUSHIONED_CHAIR_BACK.png" alt="Chair" x={148} y={248} w={48} h={48} z={16} />
 
-        {/* Workstation B — live infra preview (clickable) */}
+        {/* Workstation B — live preview (clickable) */}
         <Sprite src="/pixel-agents/assets/furniture/DESK/DESK_FRONT.png" alt="Desk B" x={370} y={150} w={144} h={96} z={14} />
-        <LinkedSprite src={pcSprite(2)} alt="Infra Preview" x={418} y={150} w={48} h={96} z={15} cls="office-monitor office-monitor-b" href="/dashboard/live-infra-preview" label="Infra Preview" />
+        <LinkedSprite src={pcSprite(2)} alt="Live Preview" x={418} y={150} w={48} h={96} z={15} cls="office-monitor office-monitor-b" href="/dashboard/live-preview" label="Live Preview" />
         <Sprite src="/pixel-agents/assets/furniture/CUSHIONED_CHAIR/CUSHIONED_CHAIR_BACK.png" alt="Chair" x={418} y={248} w={48} h={48} z={16} />
 
         {/* ═══════════════════════════════════════════
             MAIN OFFICE — Desk Row 2
             ═══════════════════════════════════════════ */}
         <Sprite src="/pixel-agents/assets/furniture/DESK/DESK_FRONT.png" alt="Desk" x={100} y={350} w={144} h={96} z={14} />
-        <LinkedSprite src={pcSprite(3)} alt="Review" x={148} y={350} w={48} h={96} z={15} cls="office-monitor office-monitor-c" href="/auth/login" label="Review" />
+        <LinkedSprite src={pcSprite(3)} alt="Run Records" x={148} y={350} w={48} h={96} z={15} cls="office-monitor office-monitor-c" href="/dashboard/runs" label="Run Records" />
         <Sprite src="/pixel-agents/assets/furniture/CUSHIONED_CHAIR/CUSHIONED_CHAIR_BACK.png" alt="Chair" x={148} y={448} w={48} h={48} z={16} />
 
         <Sprite src="/pixel-agents/assets/furniture/DESK/DESK_FRONT.png" alt="Desk" x={370} y={350} w={144} h={96} z={14} />

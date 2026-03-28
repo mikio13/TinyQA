@@ -310,16 +310,10 @@ export default function DashboardPage() {
 
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Link
-                    href={`/dashboard/live-pr-preview?project_id=${project.id}`}
+                    href={`/dashboard/live-preview?project_id=${project.id}`}
                     className="rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-white/70 transition-colors hover:bg-white/15 hover:text-white"
                   >
-                    Live PR Preview
-                  </Link>
-                  <Link
-                    href={`/dashboard/live-infra-preview?project_id=${project.id}`}
-                    className="rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-white/70 transition-colors hover:bg-white/15 hover:text-white"
-                  >
-                    Live Infra Preview
+                    Live Preview
                   </Link>
                 </div>
               </div>
