@@ -301,6 +301,14 @@ export default function Home() {
       className={`flex flex-col items-center justify-center ${isLoggedIn ? "h-screen overflow-hidden" : "min-h-screen overflow-auto py-12"}`}
       style={{ backgroundColor: WALL_COLOR }}
     >
+      <header className="pointer-events-none fixed left-4 top-4 z-40">
+        <div className="rounded-full border border-white/10 bg-[#1E2638]/80 px-4 py-2 shadow-lg backdrop-blur-sm">
+          <span className="text-sm font-bold uppercase tracking-[0.32em] text-white">
+            TinyQA
+          </span>
+        </div>
+      </header>
+
       {/* Wrapper sizes to the visual scaled dimensions for proper centering */}
       <div style={{ width: SCENE_W * scale, height: SCENE_H * scale }}>
         <div
@@ -450,7 +458,6 @@ export default function Home() {
         <Sprite src="/pixel-agents/assets/furniture/BOOKSHELF/BOOKSHELF.png" alt="Bookshelf" x={980} y={20} w={96} h={48} />
         <Sprite src="/pixel-agents/assets/furniture/BOOKSHELF/BOOKSHELF.png" alt="Bookshelf" x={980} y={68} w={96} h={48} />
         <Sprite src="/pixel-agents/assets/furniture/BOOKSHELF/BOOKSHELF.png" alt="Bookshelf" x={980} y={116} w={96} h={48} />
-        <Sprite src="/pixel-agents/assets/furniture/COFFEE/COFFEE.png" alt="Coffee station" x={1050} y={28} w={48} h={48} z={16} />
         {/* ═══════════════════════════════════════════
             BOTTOM-RIGHT ROOM — Meeting / Review room
             ═══════════════════════════════════════════ */}
