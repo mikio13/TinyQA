@@ -8,7 +8,7 @@ import {
   updateRun,
 } from "@/lib/runs";
 import { Octokit } from "@octokit/rest";
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { ChatOpenAI } from "@langchain/openai";
 import { SystemMessage, HumanMessage } from "@langchain/core/messages";
 import type {
   Project,
@@ -16,9 +16,9 @@ import type {
   WebhookPayload,
 } from "@/lib/types";
 
-const model = new ChatGoogleGenerativeAI({
-  model: "gemini-2.5-flash-lite",
-  apiKey: process.env.GEMINI_API_KEY,
+const model = new ChatOpenAI({
+  model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 const TINYFISH_STREAM_URL = "https://agent.tinyfish.ai/v1/automation/run-sse";
@@ -147,6 +147,11 @@ async function processWebhook(
 
   try {
     const octokit = new Octokit({ auth: proj.github_pat });
+    const targetUrl = proj.staging_url;
+    // Temporarily forced to deployed/staging URL because Vercel preview URLs
+    // may require an authenticated Vercel session that TinyFish cannot access.
+    // Keep this resolver block for future re-enable once preview access is public.
+    /*
     const targetUrl = await resolveTargetUrlForPr({
       octokit,
       owner: proj.repo_owner,
@@ -160,6 +165,7 @@ async function processWebhook(
         target_url: targetUrl,
       });
     }
+    */
 
     const { data: prData } = await octokit.pulls.get({
       owner: proj.repo_owner,
@@ -431,6 +437,7 @@ async function postGitHubComment(
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function resolveTargetUrlForPr({
   octokit,
   owner,
