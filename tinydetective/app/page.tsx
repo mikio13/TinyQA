@@ -359,8 +359,8 @@ export default function Home() {
         <Sprite src="/pixel-agents/assets/furniture/BOOKSHELF/BOOKSHELF.png" alt="Bookshelf" x={700} y={24} w={96} h={48} />
         <Sprite src="/pixel-agents/assets/furniture/DOUBLE_BOOKSHELF/DOUBLE_BOOKSHELF.png" alt="Shelf" x={810} y={20} w={96} h={96} />
         <Sprite src="/pixel-agents/assets/furniture/CLOCK/CLOCK.png" alt="Clock" x={920} y={20} w={48} h={96} z={20} />
-        <Sprite src="/pixel-agents/assets/furniture/COFFEE/COFFEE.png" alt="Coffee station" x={1000} y={28} w={48} h={48} z={16} />
-        <Sprite src="/pixel-agents/assets/furniture/SMALL_TABLE/SMALL_TABLE_FRONT.png" alt="Table" x={1000} y={80} w={96} h={96} z={14} />
+        <Sprite src="/pixel-agents/assets/furniture/COFFEE/COFFEE.png" alt="Coffee station" x={1050} y={28} w={48} h={48} z={16} />
+        <Sprite src="/pixel-agents/assets/furniture/SMALL_TABLE/SMALL_TABLE_FRONT.png" alt="Table" x={1000} y={120} w={96} h={96} z={14} />
         <Sprite src="/pixel-agents/assets/furniture/CACTUS/CACTUS.png" alt="Cactus" x={690} y={160} w={48} h={96} z={14} />
 
         {/* ═══════════════════════════════════════════
@@ -380,9 +380,9 @@ export default function Home() {
         <Sprite src="/pixel-agents/assets/furniture/PLANT/PLANT.png" alt="Plant" x={690} y={540} w={48} h={96} z={14} />
         <Sprite src="/pixel-agents/assets/furniture/PLANT/PLANT.png" alt="Plant" x={1050} y={540} w={48} h={96} z={14} />
 
-        {/* Dashboard whiteboard — only when logged in */}
+        {/* Dashboard whiteboard — on the top-right room wall, only when logged in */}
         {isLoggedIn && (
-          <LinkedSprite src="/pixel-agents/assets/furniture/WHITEBOARD/WHITEBOARD.png" alt="Dashboard" x={840} y={400} w={96} h={96} z={15} href="/dashboard" label="Dashboard" />
+          <LinkedSprite src="/pixel-agents/assets/furniture/WHITEBOARD/WHITEBOARD.png" alt="Dashboard" x={840} y={120} w={96} h={96} z={11} href="/dashboard" label="Dashboard" />
         )}
 
         {/* Sofa lounge area — centered in room */}
