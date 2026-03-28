@@ -1,3 +1,4 @@
+import { LivePrPreviewPanel } from "@/components/preview/live-pr-preview-panel";
 import { redirect } from "next/navigation";
 
 export default async function LegacyLivePrPreviewPage({
@@ -10,4 +11,6 @@ export default async function LegacyLivePrPreviewPage({
     ? `/dashboard/live-preview?project_id=${params.project_id}`
     : "/dashboard/live-preview";
   redirect(target);
-}
+  export default function LivePrPreviewPage() {
+    return <LivePrPreviewPanel />;
+  }

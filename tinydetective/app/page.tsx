@@ -4,6 +4,11 @@ import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { AnalyticsPanel } from "@/components/dashboard/analytics-panel";
+import { DashboardProjectsPanel } from "@/components/dashboard/projects-panel";
+import { DashboardSheet } from "@/components/dashboard/dashboard-sheet";
+import { LivePrPreviewPanel } from "@/components/preview/live-pr-preview-panel";
+import { LiveInfraPreviewPanel } from "@/components/preview/live-infra-preview-panel";
 
 /* ================================================================
    SCENE CONSTANTS
@@ -113,7 +118,11 @@ function Sprite({ src, alt, x, y, w, h, z = 12, flip, cls }: SpriteProps) {
       height={h}
       className={`pixelated absolute ${cls ?? ""}`}
       style={{
-        left: x, top: y, zIndex: z,
+        left: x,
+        top: y,
+        zIndex: z,
+        width: w,
+        height: h,
         transform: flip ? "scaleX(-1)" : undefined,
       }}
       draggable={false}
@@ -139,6 +148,7 @@ function LinkedSprite({
         width={w}
         height={h}
         className="pixelated transition-transform duration-150 group-hover:scale-110 group-hover:brightness-125"
+        style={{ width: w, height: h, display: "block" }}
         draggable={false}
       />
       <span
@@ -169,6 +179,7 @@ function ActionSprite({
         width={w}
         height={h}
         className="pixelated transition-transform duration-150 group-hover:scale-110 group-hover:brightness-125"
+        style={{ width: w, height: h, display: "block" }}
         draggable={false}
       />
       <span
@@ -245,6 +256,9 @@ function Agent({ x, y, charId, dir, scale = 4, z = 18, cls }: AgentProps) {
 export default function Home() {
   const [scale, setScale] = useState(0.85);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [activeSheet, setActiveSheet] = useState<
+    "dashboard" | "analytics" | "pr-preview" | "infra-preview" | null
+  >(null);
 
   useEffect(() => {
     const update = () => {
@@ -275,6 +289,7 @@ export default function Home() {
   const speechText = isLoggedIn
     ? "What would you like to investigate?"
     : "Hi, I'm Tiny QA! Please login to get started.";
+  const showChatPrompt = false;
 
   const handleLogout = async () => {
     const supabase = createClient();
@@ -297,124 +312,208 @@ export default function Home() {
             transformOrigin: "top left",
           }}
         >
-        {/* ── FLOOR ROOMS ──────────────────────────── */}
-        {rooms.map((r) => (
-          <Floor key={`${r.x}-${r.y}`} {...r} />
-        ))}
+          {/* ── FLOOR ROOMS ──────────────────────────── */}
+          {rooms.map((r) => (
+            <Floor key={`${r.x}-${r.y}`} {...r} />
+          ))}
 
-        {/* ── WALLS ────────────────────────────────── */}
-        {walls.map((w, i) => (
-          <Wall key={i} {...w} />
-        ))}
+          {/* ── WALLS ────────────────────────────────── */}
+          {walls.map((w, i) => (
+            <Wall key={i} {...w} />
+          ))}
 
-        {/* ═══════════════════════════════════════════
+          {/* ═══════════════════════════════════════════
             MAIN OFFICE — Wall decorations (top wall)
             ═══════════════════════════════════════════ */}
-        <Sprite src="/pixel-agents/assets/furniture/DOUBLE_BOOKSHELF/DOUBLE_BOOKSHELF.png" alt="Bookshelf" x={40} y={20} w={96} h={96} />
-        <Sprite src="/pixel-agents/assets/furniture/DOUBLE_BOOKSHELF/DOUBLE_BOOKSHELF.png" alt="Bookshelf" x={148} y={20} w={96} h={96} />
-        <Sprite src="/pixel-agents/assets/furniture/DOUBLE_BOOKSHELF/DOUBLE_BOOKSHELF.png" alt="Bookshelf" x={370} y={20} w={96} h={96} />
-        <Sprite src="/pixel-agents/assets/furniture/DOUBLE_BOOKSHELF/DOUBLE_BOOKSHELF.png" alt="Bookshelf" x={478} y={20} w={96} h={96} />
-        <Sprite src="/pixel-agents/assets/furniture/HANGING_PLANT/HANGING_PLANT.png" alt="Hanging plant" x={268} y={16} w={48} h={96} />
-        <Sprite src="/pixel-agents/assets/furniture/HANGING_PLANT/HANGING_PLANT.png" alt="Hanging plant" x={588} y={16} w={48} h={96} />
-        <Sprite src="/pixel-agents/assets/furniture/LARGE_PLANT/LARGE_PLANT.png" alt="Plant" x={28} y={108} w={96} h={144} z={14} />
+          <Sprite src="/pixel-agents/assets/furniture/DOUBLE_BOOKSHELF/DOUBLE_BOOKSHELF.png" alt="Bookshelf" x={40} y={20} w={96} h={96} />
+          <Sprite src="/pixel-agents/assets/furniture/DOUBLE_BOOKSHELF/DOUBLE_BOOKSHELF.png" alt="Bookshelf" x={148} y={20} w={96} h={96} />
+          <Sprite src="/pixel-agents/assets/furniture/DOUBLE_BOOKSHELF/DOUBLE_BOOKSHELF.png" alt="Bookshelf" x={370} y={20} w={96} h={96} />
+          <Sprite src="/pixel-agents/assets/furniture/DOUBLE_BOOKSHELF/DOUBLE_BOOKSHELF.png" alt="Bookshelf" x={478} y={20} w={96} h={96} />
 
-        {/* ═══════════════════════════════════════════
+          {/* ═══════════════════════════════════════════
             MAIN OFFICE — Desk Row 1 (Workstations A & B)
             Primary product workstations
             ═══════════════════════════════════════════ */}
 
-        {/* Workstation A — projects (clickable) */}
-        <Sprite src="/pixel-agents/assets/furniture/DESK/DESK_FRONT.png" alt="Desk A" x={100} y={150} w={144} h={96} z={14} />
-        <LinkedSprite src={pcSprite(1)} alt="Projects" x={148} y={150} w={48} h={96} z={15} cls="office-monitor office-monitor-a" href="/dashboard" label="Projects" />
-        <Sprite src="/pixel-agents/assets/furniture/CUSHIONED_CHAIR/CUSHIONED_CHAIR_BACK.png" alt="Chair" x={148} y={248} w={48} h={48} z={16} />
+          {/* Workstation A — projects */}
+          <Sprite src="/pixel-agents/assets/furniture/DESK/DESK_FRONT.png" alt="Desk A" x={100} y={150} w={144} h={96} z={14} />
+          <LinkedSprite src={pcSprite(1)} alt="Projects" x={148} y={150} w={48} h={96} z={15} cls="office-monitor office-monitor-a" href="/dashboard" label="Projects" />
+          {isLoggedIn ? (
+            <ActionSprite
+              src={pcSprite(1)}
+              alt="PR Preview"
+              x={148}
+              y={150}
+              w={48}
+              h={96}
+              z={15}
+              cls="office-monitor office-monitor-a"
+              label="PR Review"
+              onClick={() => setActiveSheet("pr-preview")}
+            />
+          ) : (
+            <LinkedSprite
+              src={pcSprite(1)}
+              alt="PR Preview"
+              x={148}
+              y={150}
+              w={48}
+              h={96}
+              z={15}
+              cls="office-monitor office-monitor-a"
+              href="/auth/login"
+              label="PR Review"
+            />
+          )}
+          <Sprite src="/pixel-agents/assets/furniture/CUSHIONED_CHAIR/CUSHIONED_CHAIR_BACK.png" alt="Chair" x={148} y={248} w={48} h={48} z={16} />
 
-        {/* Workstation B — live preview (clickable) */}
-        <Sprite src="/pixel-agents/assets/furniture/DESK/DESK_FRONT.png" alt="Desk B" x={370} y={150} w={144} h={96} z={14} />
-        <LinkedSprite src={pcSprite(2)} alt="Live Preview" x={418} y={150} w={48} h={96} z={15} cls="office-monitor office-monitor-b" href="/dashboard/live-preview" label="Live Preview" />
-        <Sprite src="/pixel-agents/assets/furniture/CUSHIONED_CHAIR/CUSHIONED_CHAIR_BACK.png" alt="Chair" x={418} y={248} w={48} h={48} z={16} />
+          {/* Workstation B — live preview */}
+          <Sprite src="/pixel-agents/assets/furniture/DESK/DESK_FRONT.png" alt="Desk B" x={370} y={150} w={144} h={96} z={14} />
+          {isLoggedIn ? (
+            <ActionSprite
+              src={pcSprite(2)}
+              alt="Infra Preview"
+              x={418}
+              y={150}
+              w={48}
+              h={96}
+              z={15}
+              cls="office-monitor office-monitor-b"
+              label="Infra Review"
+              onClick={() => setActiveSheet("infra-preview")}
+            />
+          ) : (
+            <LinkedSprite
+              src={pcSprite(2)}
+              alt="Infra Preview"
+              x={418}
+              y={150}
+              w={48}
+              h={96}
+              z={15}
+              cls="office-monitor office-monitor-b"
+              href="/auth/login"
+              label="Infra Review"
+            />
+          )}
+          <Sprite src="/pixel-agents/assets/furniture/CUSHIONED_CHAIR/CUSHIONED_CHAIR_BACK.png" alt="Chair" x={418} y={248} w={48} h={48} z={16} />
 
-        {/* ═══════════════════════════════════════════
+          {/* ═══════════════════════════════════════════
             MAIN OFFICE — Desk Row 2
             ═══════════════════════════════════════════ */}
-        <Sprite src="/pixel-agents/assets/furniture/DESK/DESK_FRONT.png" alt="Desk" x={100} y={350} w={144} h={96} z={14} />
-        <LinkedSprite src={pcSprite(3)} alt="Run Records" x={148} y={350} w={48} h={96} z={15} cls="office-monitor office-monitor-c" href="/dashboard/runs" label="Run Records" />
-        <Sprite src="/pixel-agents/assets/furniture/CUSHIONED_CHAIR/CUSHIONED_CHAIR_BACK.png" alt="Chair" x={148} y={448} w={48} h={48} z={16} />
+          <Sprite src="/pixel-agents/assets/furniture/DESK/DESK_FRONT.png" alt="Desk" x={100} y={350} w={144} h={96} z={14} />
+          {isLoggedIn ? (
+            <ActionSprite
+              src={pcSprite(3)}
+              alt="Analytics"
+              x={148}
+              y={350}
+              w={48}
+              h={96}
+              z={15}
+              cls="office-monitor office-monitor-c"
+              label="Analytics"
+              onClick={() => setActiveSheet("analytics")}
+            />
+          ) : (
+            <LinkedSprite
+              src={pcSprite(3)}
+              alt="Analytics"
+              x={148}
+              y={350}
+              w={48}
+              h={96}
+              z={15}
+              cls="office-monitor office-monitor-c"
+              href="/auth/login"
+              label="Analytics"
+            />
+          )}
+          <Sprite src="/pixel-agents/assets/furniture/CUSHIONED_CHAIR/CUSHIONED_CHAIR_BACK.png" alt="Chair" x={148} y={448} w={48} h={48} z={16} />
 
-        <Sprite src="/pixel-agents/assets/furniture/DESK/DESK_FRONT.png" alt="Desk" x={370} y={350} w={144} h={96} z={14} />
-        {isLoggedIn ? (
-          <ActionSprite src={pcSprite(1)} alt="Logout" x={418} y={350} w={48} h={96} z={15} label="Logout" onClick={handleLogout} />
-        ) : (
-          <LinkedSprite src={pcSprite(1)} alt="Login" x={418} y={350} w={48} h={96} z={15} href="/auth/login" label="Login" />
-        )}
-        <Sprite src="/pixel-agents/assets/furniture/CUSHIONED_CHAIR/CUSHIONED_CHAIR_BACK.png" alt="Chair" x={418} y={448} w={48} h={48} z={16} />
+          <Sprite src="/pixel-agents/assets/furniture/DESK/DESK_FRONT.png" alt="Desk" x={370} y={350} w={144} h={96} z={14} />
+          {isLoggedIn ? (
+            <ActionSprite src={pcSprite(1)} alt="Logout" x={418} y={350} w={48} h={96} z={15} label="Logout" onClick={handleLogout} />
+          ) : (
+            <LinkedSprite src={pcSprite(1)} alt="Login" x={418} y={350} w={48} h={96} z={15} href="/auth/login" label="Login" />
+          )}
+          <Sprite src="/pixel-agents/assets/furniture/CUSHIONED_CHAIR/CUSHIONED_CHAIR_BACK.png" alt="Chair" x={418} y={448} w={48} h={48} z={16} />
 
-        {/* Main office small items */}
-        <Sprite src="/pixel-agents/assets/furniture/BIN/BIN.png" alt="Bin" x={590} y={448} w={48} h={48} z={14} />
-        <Sprite src="/pixel-agents/assets/furniture/PLANT/PLANT.png" alt="Plant" x={596} y={100} w={48} h={96} z={14} />
-        <Sprite src="/pixel-agents/assets/furniture/PLANT_2/PLANT_2.png" alt="Plant" x={28} y={400} w={48} h={96} z={14} />
+          {/* Main office small items */}
+          <Sprite src="/pixel-agents/assets/furniture/BIN/BIN.png" alt="Bin" x={590} y={448} w={48} h={48} z={14} />
+          <Sprite src="/pixel-agents/assets/furniture/PLANT/PLANT.png" alt="Plant" x={596} y={100} w={48} h={96} z={14} />
+          <Sprite src="/pixel-agents/assets/furniture/PLANT_2/PLANT_2.png" alt="Plant" x={28} y={400} w={48} h={96} z={14} />
 
-        {/* ═══════════════════════════════════════════
+          {/* ═══════════════════════════════════════════
             TOP-RIGHT ROOM — Kitchen / Break area
             ═══════════════════════════════════════════ */}
-        <Sprite src="/pixel-agents/assets/furniture/BOOKSHELF/BOOKSHELF.png" alt="Bookshelf" x={700} y={24} w={96} h={48} />
-        <Sprite src="/pixel-agents/assets/furniture/DOUBLE_BOOKSHELF/DOUBLE_BOOKSHELF.png" alt="Shelf" x={810} y={20} w={96} h={96} />
-        <Sprite src="/pixel-agents/assets/furniture/CLOCK/CLOCK.png" alt="Clock" x={920} y={20} w={48} h={96} z={20} />
-        <Sprite src="/pixel-agents/assets/furniture/COFFEE/COFFEE.png" alt="Coffee station" x={1050} y={28} w={48} h={48} z={16} />
-        <Sprite src="/pixel-agents/assets/furniture/SMALL_TABLE/SMALL_TABLE_FRONT.png" alt="Table" x={1000} y={120} w={96} h={96} z={14} />
-        <Sprite src="/pixel-agents/assets/furniture/CACTUS/CACTUS.png" alt="Cactus" x={690} y={160} w={48} h={96} z={14} />
-
-        {/* ═══════════════════════════════════════════
+          <Sprite src="/pixel-agents/assets/furniture/CLOCK/CLOCK.png" alt="Clock" x={864} y={20} w={48} h={96} z={20} />
+          <Sprite src="/pixel-agents/assets/furniture/BOOKSHELF/BOOKSHELF.png" alt="Bookshelf" x={980} y={20} w={96} h={48} />
+          <Sprite src="/pixel-agents/assets/furniture/BOOKSHELF/BOOKSHELF.png" alt="Bookshelf" x={980} y={68} w={96} h={48} />
+          <Sprite src="/pixel-agents/assets/furniture/BOOKSHELF/BOOKSHELF.png" alt="Bookshelf" x={980} y={116} w={96} h={48} />
+          <Sprite src="/pixel-agents/assets/furniture/COFFEE/COFFEE.png" alt="Coffee station" x={1050} y={28} w={48} h={48} z={16} />
+          {/* ═══════════════════════════════════════════
             BOTTOM-RIGHT ROOM — Meeting / Review room
             ═══════════════════════════════════════════ */}
 
-        {/* Left desk cluster — no PCs */}
-        <Sprite src="/pixel-agents/assets/furniture/DESK/DESK_SIDE.png" alt="Desk" x={686} y={280} w={48} h={192} z={15} />
-        <Sprite src="/pixel-agents/assets/furniture/BOOKSHELF/BOOKSHELF.png" alt="Bookshelf" x={680} y={480} w={96} h={48} z={14} />
+          {/* Single review-room workstation */}
+          <SpeechBubble x={888} y={204} text="New features coming soon" />
+          <Agent x={840} y={244} charId={2} dir="down" scale={3} z={14} />
+          <Agent x={888} y={244} charId={5} dir="down" scale={3} z={14} />
+          <Sprite src="/pixel-agents/assets/furniture/DESK/DESK_FRONT.png" alt="Desk" x={816} y={296} w={144} h={96} z={15} />
+          <Sprite src="/pixel-agents/assets/furniture/COFFEE/COFFEE.png" alt="Coffee" x={822} y={320} w={48} h={48} z={20} />
+          <Sprite src="/pixel-agents/assets/furniture/COFFEE/COFFEE.png" alt="Coffee" x={864} y={320} w={48} h={48} z={20} />
+          <Sprite src="/pixel-agents/assets/furniture/BOOKSHELF/BOOKSHELF.png" alt="Bookshelf" x={680} y={480} w={96} h={48} z={14} />
+          <Sprite src="/pixel-agents/assets/furniture/BOOKSHELF/BOOKSHELF.png" alt="Bookshelf" x={990} y={480} w={96} h={48} z={14} />
 
-        {/* Right desk cluster — no PCs */}
-        <Sprite src="/pixel-agents/assets/furniture/DESK/DESK_SIDE.png" alt="Desk" x={1040} y={280} w={48} h={192} z={15} flip />
-        <Sprite src="/pixel-agents/assets/furniture/BOOKSHELF/BOOKSHELF.png" alt="Bookshelf" x={990} y={480} w={96} h={48} z={14} />
+          {/* Painting and decorations */}
+          <Sprite src="/pixel-agents/assets/furniture/LARGE_PAINTING/LARGE_PAINTING.png" alt="Painting" x={704} y={56} w={96} h={96} z={11} />
+          <Sprite src="/pixel-agents/assets/furniture/PLANT/PLANT.png" alt="Plant" x={690} y={540} w={48} h={96} z={14} />
+          <Sprite src="/pixel-agents/assets/furniture/PLANT/PLANT.png" alt="Plant" x={1050} y={540} w={48} h={96} z={14} />
 
-        {/* Painting and decorations */}
-        <Sprite src="/pixel-agents/assets/furniture/LARGE_PAINTING/LARGE_PAINTING.png" alt="Painting" x={840} y={260} w={96} h={96} z={11} />
-        <Sprite src="/pixel-agents/assets/furniture/PLANT/PLANT.png" alt="Plant" x={690} y={540} w={48} h={96} z={14} />
-        <Sprite src="/pixel-agents/assets/furniture/PLANT/PLANT.png" alt="Plant" x={1050} y={540} w={48} h={96} z={14} />
+          {/* Dashboard whiteboard — on the top-right room wall, only when logged in */}
+          {isLoggedIn && (
+            <ActionSprite
+              src="/pixel-agents/assets/furniture/WHITEBOARD/WHITEBOARD.png"
+              alt="Dashboard"
+              x={840}
+              y={120}
+              w={96}
+              h={96}
+              z={11}
+              label="Dashboard"
+              onClick={() => setActiveSheet("dashboard")}
+            />
+          )}
 
-        {/* Dashboard whiteboard — on the top-right room wall, only when logged in */}
-        {isLoggedIn && (
-          <LinkedSprite src="/pixel-agents/assets/furniture/WHITEBOARD/WHITEBOARD.png" alt="Dashboard" x={840} y={120} w={96} h={96} z={11} href="/dashboard" label="Dashboard" />
-        )}
+          {/* Sofa lounge area — centered in room */}
+          <Sprite src="/pixel-agents/assets/furniture/SOFA/SOFA_FRONT.png" alt="Sofa" x={840} y={500} w={96} h={48} z={14} />
+          <Sprite src="/pixel-agents/assets/furniture/SOFA/SOFA_BACK.png" alt="Sofa" x={840} y={580} w={96} h={48} z={14} />
+          <Sprite src="/pixel-agents/assets/furniture/COFFEE_TABLE/COFFEE_TABLE.png" alt="Coffee table" x={840} y={530} w={96} h={96} z={13} />
+          <Sprite src="/pixel-agents/assets/furniture/COFFEE/COFFEE.png" alt="Coffee" x={870} y={550} w={48} h={48} z={20} />
 
-        {/* Sofa lounge area — centered in room */}
-        <Sprite src="/pixel-agents/assets/furniture/SOFA/SOFA_FRONT.png" alt="Sofa" x={840} y={500} w={96} h={48} z={14} />
-        <Sprite src="/pixel-agents/assets/furniture/SOFA/SOFA_BACK.png" alt="Sofa" x={840} y={580} w={96} h={48} z={14} />
-        <Sprite src="/pixel-agents/assets/furniture/COFFEE_TABLE/COFFEE_TABLE.png" alt="Coffee table" x={840} y={530} w={96} h={96} z={13} />
-        <Sprite src="/pixel-agents/assets/furniture/COFFEE/COFFEE.png" alt="Coffee" x={870} y={550} w={48} h={48} z={20} />
-
-        {/* ═══════════════════════════════════════════
+          {/* ═══════════════════════════════════════════
             BOTTOM-LEFT — Lounge / Break
             ═══════════════════════════════════════════ */}
-        <Sprite src="/pixel-agents/assets/furniture/CUSHIONED_BENCH/CUSHIONED_BENCH.png" alt="Bench" x={40} y={536} w={96} h={48} z={14} />
-        <Sprite src="/pixel-agents/assets/furniture/CUSHIONED_BENCH/CUSHIONED_BENCH.png" alt="Bench" x={200} y={536} w={96} h={48} z={14} />
-        <Sprite src="/pixel-agents/assets/furniture/COFFEE_TABLE/COFFEE_TABLE.png" alt="Table" x={120} y={536} w={96} h={96} z={13} />
-        <Sprite src="/pixel-agents/assets/furniture/LARGE_PLANT/LARGE_PLANT.png" alt="Plant" x={28} y={596} w={96} h={144} z={14} />
+          <Sprite src="/pixel-agents/assets/furniture/CUSHIONED_BENCH/CUSHIONED_BENCH.png" alt="Bench" x={40} y={630} w={96} h={48} z={14} />
+          <Sprite src="/pixel-agents/assets/furniture/CUSHIONED_BENCH/CUSHIONED_BENCH.png" alt="Bench" x={200} y={630} w={96} h={48} z={14} />
+          <Sprite src="/pixel-agents/assets/furniture/COFFEE_TABLE/COFFEE_TABLE.png" alt="Table" x={120} y={600} w={96} h={96} z={13} />
 
 
-        {/* Bottom-mid area */}
-        <Sprite src="/pixel-agents/assets/furniture/PLANT_2/PLANT_2.png" alt="Plant" x={420} y={580} w={48} h={96} z={14} />
-        <Sprite src="/pixel-agents/assets/furniture/SMALL_TABLE/SMALL_TABLE_FRONT.png" alt="Table" x={468} y={580} w={96} h={96} z={14} />
-        <Sprite src="/pixel-agents/assets/furniture/CACTUS/CACTUS.png" alt="Cactus" x={564} y={600} w={48} h={96} z={14} />
-
-        {/* ═══════════════════════════════════════════
+          {/* Bottom-mid area */}
+          <Sprite src="/pixel-agents/assets/furniture/PLANT_2/PLANT_2.png" alt="Plant" x={420} y={580} w={48} h={96} z={14} />
+          <Sprite src="/pixel-agents/assets/furniture/SMALL_TABLE/SMALL_TABLE_FRONT.png" alt="Table" x={468} y={580} w={96} h={96} z={14} />
+          <Sprite src="/pixel-agents/assets/furniture/PLANT_2/PLANT_2.png" alt="Plant" x={560} y={580} w={48} h={96} z={14} />
+          {/* ═══════════════════════════════════════════
             CHARACTER — Blue shirt/vest agent centered between 4 desks
             ═══════════════════════════════════════════ */}
-        <SpeechBubble x={304} y={210} text={speechText} />
-        <Agent x={268} y={250} charId={4} dir="down" scale={4.5} z={17} />
+          <SpeechBubble x={304} y={210} text={speechText} />
+          <Agent x={268} y={250} charId={4} dir="down" scale={4.5} z={17} />
         </div>
       </div>
 
       {/* ── Chat prompt (logged in only) ─── */}
-      {isLoggedIn && (
+      {isLoggedIn && showChatPrompt && (
         <div className="fixed bottom-0 left-0 right-0 z-50 flex justify-center px-4 pb-5">
           <div className="flex w-full max-w-xl items-center gap-2 rounded-xl border border-white/10 bg-[#1E2638]/90 px-4 py-3 shadow-lg backdrop-blur-sm">
             <input
@@ -466,6 +565,57 @@ export default function Home() {
 
         </div>
       )}
+
+      {isLoggedIn && activeSheet === "dashboard" ? (
+        <DashboardSheet
+          onClose={() => setActiveSheet(null)}
+          fullPageHref="/dashboard"
+          fullPageLabel="Full Page"
+          title="Dashboard Workspace"
+          eyebrow="Office Popup"
+        >
+          <DashboardProjectsPanel />
+        </DashboardSheet>
+      ) : null}
+
+      {isLoggedIn && activeSheet === "analytics" ? (
+        <DashboardSheet
+          onClose={() => setActiveSheet(null)}
+          fullPageHref="/dashboard/analytics"
+          fullPageLabel="Open Full Analytics"
+          title="Analytics Workspace"
+          eyebrow="Metrics Popup"
+          maxWidthClassName="max-w-[72rem]"
+        >
+          <AnalyticsPanel />
+        </DashboardSheet>
+      ) : null}
+
+      {isLoggedIn && activeSheet === "pr-preview" ? (
+        <DashboardSheet
+          onClose={() => setActiveSheet(null)}
+          fullPageHref="/dashboard/live-pr-preview"
+          fullPageLabel="Open Full Preview"
+          title="PR Review Live View"
+          eyebrow="Live Browser Popup"
+          maxWidthClassName="max-w-[72rem]"
+        >
+          <LivePrPreviewPanel />
+        </DashboardSheet>
+      ) : null}
+
+      {isLoggedIn && activeSheet === "infra-preview" ? (
+        <DashboardSheet
+          onClose={() => setActiveSheet(null)}
+          fullPageHref="/dashboard/live-infra-preview"
+          fullPageLabel="Open Full Preview"
+          title="Infra Review Live View"
+          eyebrow="Environment Popup"
+          maxWidthClassName="max-w-[72rem]"
+        >
+          <LiveInfraPreviewPanel />
+        </DashboardSheet>
+      ) : null}
     </main>
   );
 }
