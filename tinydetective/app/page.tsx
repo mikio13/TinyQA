@@ -4,6 +4,10 @@ import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { DashboardProjectsPanel } from "@/components/dashboard/projects-panel";
+import { DashboardSheet } from "@/components/dashboard/dashboard-sheet";
+import { LivePrPreviewPanel } from "@/components/preview/live-pr-preview-panel";
+import { LiveInfraPreviewPanel } from "@/components/preview/live-infra-preview-panel";
 
 /* ================================================================
    SCENE CONSTANTS
@@ -113,7 +117,11 @@ function Sprite({ src, alt, x, y, w, h, z = 12, flip, cls }: SpriteProps) {
       height={h}
       className={`pixelated absolute ${cls ?? ""}`}
       style={{
-        left: x, top: y, zIndex: z,
+        left: x,
+        top: y,
+        zIndex: z,
+        width: w,
+        height: h,
         transform: flip ? "scaleX(-1)" : undefined,
       }}
       draggable={false}
@@ -139,6 +147,7 @@ function LinkedSprite({
         width={w}
         height={h}
         className="pixelated transition-transform duration-150 group-hover:scale-110 group-hover:brightness-125"
+        style={{ width: w, height: h, display: "block" }}
         draggable={false}
       />
       <span
@@ -169,6 +178,7 @@ function ActionSprite({
         width={w}
         height={h}
         className="pixelated transition-transform duration-150 group-hover:scale-110 group-hover:brightness-125"
+        style={{ width: w, height: h, display: "block" }}
         draggable={false}
       />
       <span
@@ -245,6 +255,9 @@ function Agent({ x, y, charId, dir, scale = 4, z = 18, cls }: AgentProps) {
 export default function Home() {
   const [scale, setScale] = useState(0.85);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [activeSheet, setActiveSheet] = useState<
+    "dashboard" | "pr-preview" | "infra-preview" | null
+  >(null);
 
   useEffect(() => {
     const update = () => {
@@ -323,21 +336,99 @@ export default function Home() {
             The two important computer workstations
             ═══════════════════════════════════════════ */}
 
-        {/* Workstation A — live PR preview (clickable) */}
+        {/* Workstation A — live PR preview */}
         <Sprite src="/pixel-agents/assets/furniture/DESK/DESK_FRONT.png" alt="Desk A" x={100} y={150} w={144} h={96} z={14} />
-        <LinkedSprite src={pcSprite(1)} alt="PR Preview" x={148} y={150} w={48} h={96} z={15} cls="office-monitor office-monitor-a" href="/dashboard/live-pr-preview" label="PR Preview" />
+        {isLoggedIn ? (
+          <ActionSprite
+            src={pcSprite(1)}
+            alt="PR Preview"
+            x={148}
+            y={150}
+            w={48}
+            h={96}
+            z={15}
+            cls="office-monitor office-monitor-a"
+            label="PR Review"
+            onClick={() => setActiveSheet("pr-preview")}
+          />
+        ) : (
+          <LinkedSprite
+            src={pcSprite(1)}
+            alt="PR Preview"
+            x={148}
+            y={150}
+            w={48}
+            h={96}
+            z={15}
+            cls="office-monitor office-monitor-a"
+            href="/auth/login"
+            label="PR Review"
+          />
+        )}
         <Sprite src="/pixel-agents/assets/furniture/CUSHIONED_CHAIR/CUSHIONED_CHAIR_BACK.png" alt="Chair" x={148} y={248} w={48} h={48} z={16} />
 
-        {/* Workstation B — live infra preview (clickable) */}
+        {/* Workstation B — live infra preview */}
         <Sprite src="/pixel-agents/assets/furniture/DESK/DESK_FRONT.png" alt="Desk B" x={370} y={150} w={144} h={96} z={14} />
-        <LinkedSprite src={pcSprite(2)} alt="Infra Preview" x={418} y={150} w={48} h={96} z={15} cls="office-monitor office-monitor-b" href="/dashboard/live-infra-preview" label="Infra Preview" />
+        {isLoggedIn ? (
+          <ActionSprite
+            src={pcSprite(2)}
+            alt="Infra Preview"
+            x={418}
+            y={150}
+            w={48}
+            h={96}
+            z={15}
+            cls="office-monitor office-monitor-b"
+            label="Infra Review"
+            onClick={() => setActiveSheet("infra-preview")}
+          />
+        ) : (
+          <LinkedSprite
+            src={pcSprite(2)}
+            alt="Infra Preview"
+            x={418}
+            y={150}
+            w={48}
+            h={96}
+            z={15}
+            cls="office-monitor office-monitor-b"
+            href="/auth/login"
+            label="Infra Review"
+          />
+        )}
         <Sprite src="/pixel-agents/assets/furniture/CUSHIONED_CHAIR/CUSHIONED_CHAIR_BACK.png" alt="Chair" x={418} y={248} w={48} h={48} z={16} />
 
         {/* ═══════════════════════════════════════════
             MAIN OFFICE — Desk Row 2
             ═══════════════════════════════════════════ */}
         <Sprite src="/pixel-agents/assets/furniture/DESK/DESK_FRONT.png" alt="Desk" x={100} y={350} w={144} h={96} z={14} />
-        <LinkedSprite src={pcSprite(3)} alt="Review" x={148} y={350} w={48} h={96} z={15} cls="office-monitor office-monitor-c" href="/auth/login" label="Review" />
+        {isLoggedIn ? (
+          <ActionSprite
+            src={pcSprite(3)}
+            alt="Analytics"
+            x={148}
+            y={350}
+            w={48}
+            h={96}
+            z={15}
+            cls="office-monitor office-monitor-c"
+            label="Analytics"
+            onClick={() => setActiveSheet("dashboard")}
+          />
+        ) : (
+          <LinkedSprite
+            src={pcSprite(3)}
+            alt="Analytics"
+            x={148}
+            y={350}
+            w={48}
+            h={96}
+            z={15}
+            cls="office-monitor office-monitor-c"
+            href="/auth/login"
+            label="Analytics"
+          />
+        )}
         <Sprite src="/pixel-agents/assets/furniture/CUSHIONED_CHAIR/CUSHIONED_CHAIR_BACK.png" alt="Chair" x={148} y={448} w={48} h={48} z={16} />
 
         <Sprite src="/pixel-agents/assets/furniture/DESK/DESK_FRONT.png" alt="Desk" x={370} y={350} w={144} h={96} z={14} />
@@ -382,7 +473,17 @@ export default function Home() {
 
         {/* Dashboard whiteboard — on the top-right room wall, only when logged in */}
         {isLoggedIn && (
-          <LinkedSprite src="/pixel-agents/assets/furniture/WHITEBOARD/WHITEBOARD.png" alt="Dashboard" x={840} y={120} w={96} h={96} z={11} href="/dashboard" label="Dashboard" />
+          <ActionSprite
+            src="/pixel-agents/assets/furniture/WHITEBOARD/WHITEBOARD.png"
+            alt="Dashboard"
+            x={840}
+            y={120}
+            w={96}
+            h={96}
+            z={11}
+            label="Dashboard"
+            onClick={() => setActiveSheet("dashboard")}
+          />
         )}
 
         {/* Sofa lounge area — centered in room */}
@@ -466,6 +567,44 @@ export default function Home() {
 
         </div>
       )}
+
+      {isLoggedIn && activeSheet === "dashboard" ? (
+        <DashboardSheet
+          onClose={() => setActiveSheet(null)}
+          fullPageHref="/dashboard"
+          fullPageLabel="Full Page"
+          title="Dashboard Workspace"
+          eyebrow="Office Popup"
+        >
+          <DashboardProjectsPanel />
+        </DashboardSheet>
+      ) : null}
+
+      {isLoggedIn && activeSheet === "pr-preview" ? (
+        <DashboardSheet
+          onClose={() => setActiveSheet(null)}
+          fullPageHref="/dashboard/live-pr-preview"
+          fullPageLabel="Open Full Preview"
+          title="PR Review Live View"
+          eyebrow="Live Browser Popup"
+          maxWidthClassName="max-w-[72rem]"
+        >
+          <LivePrPreviewPanel />
+        </DashboardSheet>
+      ) : null}
+
+      {isLoggedIn && activeSheet === "infra-preview" ? (
+        <DashboardSheet
+          onClose={() => setActiveSheet(null)}
+          fullPageHref="/dashboard/live-infra-preview"
+          fullPageLabel="Open Full Preview"
+          title="Infra Review Live View"
+          eyebrow="Environment Popup"
+          maxWidthClassName="max-w-[72rem]"
+        >
+          <LiveInfraPreviewPanel />
+        </DashboardSheet>
+      ) : null}
     </main>
   );
 }
