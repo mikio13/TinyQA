@@ -15,25 +15,55 @@ create table if not exists projects (
   created_at timestamptz default now()
 );
 
+create table if not exists runs (
+  id uuid primary key default uuid_generate_v4(),
+  project_id uuid references projects(id) on delete cascade not null,
+  user_id uuid references auth.users(id) on delete cascade not null,
+  source text not null check (source in ('webhook', 'manual_live_preview')),
+  status text not null check (status in ('queued', 'running', 'passed', 'failed', 'error', 'timed_out')),
+  tinyfish_run_id text,
+  streaming_url text,
+  github_delivery_id text,
+  github_event text,
+  pr_number integer,
+  pr_title text,
+  pr_url text,
+  repo_full_name text not null,
+  target_url text not null,
+  goal text,
+  browser_profile text,
+  result_text text,
+  review_comment_url text,
+  screenshot_url text,
+  failure_reason text,
+  started_at timestamptz,
+  completed_at timestamptz,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 -- Row-Level Security
 alter table projects enable row level security;
+alter table runs enable row level security;
 
--- Users can only CRUD their own projects
-create policy "Users can view own projects"
-  on projects for select
+create policy "Users can view own runs"
+  on runs for select
   using (auth.uid() = user_id);
 
-create policy "Users can insert own projects"
-  on projects for insert
+create policy "Users can insert own runs"
+  on runs for insert
   with check (auth.uid() = user_id);
 
-create policy "Users can update own projects"
-  on projects for update
+create policy "Users can update own runs"
+  on runs for update
   using (auth.uid() = user_id);
 
-create policy "Users can delete own projects"
-  on projects for delete
+create policy "Users can delete own runs"
+  on runs for delete
   using (auth.uid() = user_id);
 
 -- Indexes
 create index if not exists idx_projects_user_id on projects(user_id);
+create index if not exists idx_runs_user_id on runs(user_id);
+create index if not exists idx_runs_project_id on runs(project_id);
+create index if not exists idx_runs_created_at on runs(created_at desc);

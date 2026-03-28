@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Project } from "@/lib/types";
@@ -306,6 +307,21 @@ export default function DashboardPage() {
                     year: "numeric",
                   })}
                 </p>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Link
+                    href={`/dashboard/live-pr-preview?project_id=${project.id}`}
+                    className="rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-white/70 transition-colors hover:bg-white/15 hover:text-white"
+                  >
+                    Live PR Preview
+                  </Link>
+                  <Link
+                    href={`/dashboard/live-infra-preview?project_id=${project.id}`}
+                    className="rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-white/70 transition-colors hover:bg-white/15 hover:text-white"
+                  >
+                    Live Infra Preview
+                  </Link>
+                </div>
               </div>
             ))}
           </div>
