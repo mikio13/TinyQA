@@ -10,7 +10,9 @@
       "Bash(done)",
       "mcp__Claude_Preview__preview_start",
       "Bash(kill 14241)",
-      "Bash(kill 73397)"
+      "Bash(kill 73397)",
+      "Bash(git stash:*)",
+      "Bash(git merge:*)"
     ]
   }
 }

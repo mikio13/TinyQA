@@ -9,7 +9,7 @@ interface ActivityLogProps {
 
 export function ActivityLog({ title, items }: ActivityLogProps) {
   return (
-    <Card className="border-white/10 bg-white/5 shadow-2xl shadow-cyan-950/10 backdrop-blur-sm">
+    <Card className="border-white/10 bg-white/5">
       <CardHeader className="pb-4">
         <CardTitle className="text-base">{title}</CardTitle>
       </CardHeader>
@@ -26,13 +26,13 @@ export function ActivityLog({ title, items }: ActivityLogProps) {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm font-medium text-white">{item.label}</p>
                 <div className="flex items-center gap-2">
-                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
+                  <p className="text-xs uppercase tracking-[0.18em] text-white/40">
                     {item.time}
                   </p>
                   <StatusBadge status={item.state} />
                 </div>
               </div>
-              <p className="mt-2 text-sm leading-6 text-slate-300">
+              <p className="mt-2 text-sm leading-6 text-white/60">
                 {item.detail}
               </p>
             </div>

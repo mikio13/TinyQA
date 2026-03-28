@@ -9,7 +9,7 @@ interface ChecklistPanelProps {
 
 export function ChecklistPanel({ title, items }: ChecklistPanelProps) {
   return (
-    <Card className="border-white/10 bg-white/5 shadow-2xl shadow-cyan-950/10 backdrop-blur-sm">
+    <Card className="border-white/10 bg-white/5">
       <CardHeader className="pb-4">
         <CardTitle className="text-base">{title}</CardTitle>
       </CardHeader>
@@ -17,12 +17,12 @@ export function ChecklistPanel({ title, items }: ChecklistPanelProps) {
         {items.map((item) => (
           <div
             key={item.id}
-            className="rounded-2xl border border-white/10 bg-black/20 p-4"
+            className="rounded-lg border border-white/10 bg-white/5 p-4"
           >
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-medium text-white">{item.title}</p>
-                <p className="mt-2 text-sm leading-6 text-slate-300">
+                <p className="mt-2 text-sm leading-6 text-white/60">
                   {item.detail}
                 </p>
               </div>

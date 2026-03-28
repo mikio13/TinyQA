@@ -19,7 +19,7 @@ export function MetricGrid({
   items,
 }: MetricGridProps) {
   return (
-    <Card className="border-white/10 bg-white/5 shadow-2xl shadow-cyan-950/10 backdrop-blur-sm">
+    <Card className="border-white/10 bg-white/5">
       <CardHeader className="pb-4">
         <CardTitle className="text-base">{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
@@ -28,9 +28,9 @@ export function MetricGrid({
         {items.map((item) => (
           <div
             key={item.label}
-            className="rounded-2xl border border-white/10 bg-black/20 p-4"
+            className="rounded-lg border border-white/10 bg-white/5 p-4"
           >
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+            <p className="text-xs uppercase tracking-[0.2em] text-white/40">
               {item.label}
             </p>
             <p className="mt-2 text-2xl font-semibold text-white">{item.value}</p>
