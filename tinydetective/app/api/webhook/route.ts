@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin-client";
 import { Octokit } from "@octokit/rest";
-import OpenAI from "openai";
+import { ChatOpenAI } from "@langchain/openai";
+import { SystemMessage, HumanMessage } from "@langchain/core/messages";
 import type { Project, WebhookPayload, TinyFishRunStatus } from "@/lib/types";
+
+// ── LangChain LLM — swap provider by changing this single block ──
+const model = new ChatOpenAI({
+  model: "gpt-4o",
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 /**
  * POST /api/webhook?project_id=<UUID>
@@ -107,7 +114,7 @@ async function processWebhook(
   });
   const diff = await diffResponse.text();
 
-  // Truncate diff if too long (OpenAI context limits)
+  // Truncate diff if too long (LLM context limits)
   const maxDiffLength = 8000;
   const truncatedDiff =
     diff.length > maxDiffLength
@@ -118,23 +125,17 @@ async function processWebhook(
     `[TinyDetective] Fetched PR #${pr.number} — diff is ${diff.length} chars`
   );
 
-  // ── Step 3: Generate test command via OpenAI ──
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-  const qaPrompt = await openai.chat.completions.create({
-    model: "gpt-4o",
-    messages: [
-      {
-        role: "system",
-        content: `You are a QA Engineer. Translate this PR description and code diff into a single, strict, 1-2 sentence command for a browser automation bot to test this feature on a staging UI. 
+  // ── Step 3: Generate test command via LangChain LLM ──
+  const qaResponse = await model.invoke([
+    new SystemMessage(
+      `You are a QA Engineer. Translate this PR description and code diff into a single, strict, 1-2 sentence command for a browser automation bot to test this feature on a staging UI. 
         
 The command should be specific and actionable — tell the bot exactly what to navigate to, what to click, what to type, and what to verify. 
 Focus on the most impactful visual/functional change in the PR.
-Return ONLY the command text, nothing else.`,
-      },
-      {
-        role: "user",
-        content: `PR Title: ${prData.title}
+Return ONLY the command text, nothing else.`
+    ),
+    new HumanMessage(
+      `PR Title: ${prData.title}
 
 PR Description:
 ${prData.body || "(no description)"}
@@ -142,14 +143,12 @@ ${prData.body || "(no description)"}
 Code Diff:
 ${truncatedDiff}
 
-Staging URL: ${proj.staging_url}`,
-      },
-    ],
-    max_tokens: 300,
-  });
+Staging URL: ${proj.staging_url}`
+    ),
+  ]);
 
   const testCommand =
-    qaPrompt.choices[0]?.message?.content?.trim() ||
+    (typeof qaResponse.content === "string" ? qaResponse.content.trim() : "") ||
     "Navigate to the staging URL and check if the page loads correctly.";
 
   console.log(`[TinyDetective] Generated test command: ${testCommand}`);
@@ -220,13 +219,10 @@ Staging URL: ${proj.staging_url}`,
     }
   }
 
-  // ── Step 6: Code Review via OpenAI ──
-  const reviewResponse = await openai.chat.completions.create({
-    model: "gpt-4o",
-    messages: [
-      {
-        role: "system",
-        content: `You are a Senior Code Reviewer for a CI/CD pipeline. The QA Agent visually tested a staging site and observed the following. Based on the observation and the code diff, determine if the test PASSED or FAILED.
+  // ── Step 6: Code Review via LangChain LLM ──
+  const reviewResponse = await model.invoke([
+    new SystemMessage(
+      `You are a Senior Code Reviewer for a CI/CD pipeline. The QA Agent visually tested a staging site and observed the following. Based on the observation and the code diff, determine if the test PASSED or FAILED.
 
 Your response MUST follow this format:
 
@@ -239,25 +235,22 @@ Your response MUST follow this format:
 [Explain whether the visual test matches the expected behavior from the code changes]
 
 ### Suggested Fix (if FAILED)
-[If FAILED, provide a specific markdown-formatted code block suggesting the exact fix based on the diff. If PASSED, omit this section.]`,
-      },
-      {
-        role: "user",
-        content: `QA Agent's Observation:
+[If FAILED, provide a specific markdown-formatted code block suggesting the exact fix based on the diff. If PASSED, omit this section.]`
+    ),
+    new HumanMessage(
+      `QA Agent's Observation:
 ${observation || "(No observation returned)"}
 
 PR Diff:
 ${truncatedDiff}
 
 Test Command Given:
-${testCommand}`,
-      },
-    ],
-    max_tokens: 1500,
-  });
+${testCommand}`
+    ),
+  ]);
 
   const reviewContent =
-    reviewResponse.choices[0]?.message?.content?.trim() ||
+    (typeof reviewResponse.content === "string" ? reviewResponse.content.trim() : "") ||
     "Unable to generate review.";
 
   // ── Step 7: Post comment back to GitHub PR ──
