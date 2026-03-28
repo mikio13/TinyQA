@@ -70,7 +70,7 @@ export function StatusBadge({
     <Badge
       variant="outline"
       className={cn(
-        "inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.24em]",
+        "inline-flex items-center gap-2 rounded-lg px-2.5 py-1 text-[10px] uppercase tracking-wider font-bold",
         config.className,
         className
       )}

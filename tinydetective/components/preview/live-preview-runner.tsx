@@ -360,7 +360,7 @@ export function LivePreviewRunner({ template }: LivePreviewRunnerProps) {
   }
 
   return (
-    <div className="rounded-[36px] border border-white/10 bg-[linear-gradient(180deg,_rgba(2,6,23,0.98)_0%,_rgba(15,23,42,0.98)_100%)] p-4 shadow-2xl shadow-cyan-950/20 sm:p-6">
+    <div className="rounded-lg border border-white/10 bg-white/[0.02] p-4 sm:p-6">
       <div className="space-y-6 pb-4">
         <PageHeader
           eyebrow={template.eyebrow}
@@ -383,14 +383,14 @@ export function LivePreviewRunner({ template }: LivePreviewRunnerProps) {
         />
 
         <div className="grid gap-6 xl:grid-cols-[1.6fr_0.95fr]">
-          <Card className="overflow-hidden border-white/10 bg-slate-950/80 shadow-2xl shadow-cyan-950/20">
-            <CardHeader className="border-b border-white/10 bg-slate-950/90 pb-4">
+          <Card className="overflow-hidden border-white/10 bg-white/5">
+            <CardHeader className="border-b border-white/10 bg-white/5 pb-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <CardTitle className="text-base text-white">
                     {template.previewLabel}
                   </CardTitle>
-                  <p className="mt-2 text-sm text-slate-400">
+                  <p className="mt-2 text-sm text-white/40">
                     TinyFish `run-sse` preview stream
                   </p>
                 </div>
@@ -406,7 +406,7 @@ export function LivePreviewRunner({ template }: LivePreviewRunnerProps) {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="border-white/10 bg-white/5 text-slate-100 hover:bg-white/10"
+                        className="border-white/10 bg-white/5 text-white hover:bg-white/10"
                       >
                         <ExternalLink className="size-4" />
                         Open Stream
@@ -419,17 +419,17 @@ export function LivePreviewRunner({ template }: LivePreviewRunnerProps) {
             <CardContent className="space-y-5 p-5">
               <div className="grid gap-4 lg:grid-cols-[1fr_auto]">
                 <div className="space-y-2">
-                  <label className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                  <label className="text-xs uppercase tracking-[0.2em] text-white/40">
                     Target URL
                   </label>
                   <input
                     value={targetUrl}
                     onChange={(event) => setTargetUrl(event.target.value)}
-                    className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/40"
+                    className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/40"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                  <label className="text-xs uppercase tracking-[0.2em] text-white/40">
                     Browser profile
                   </label>
                   <select
@@ -437,7 +437,7 @@ export function LivePreviewRunner({ template }: LivePreviewRunnerProps) {
                     onChange={(event) =>
                       setBrowserProfile(event.target.value as "lite" | "stealth")
                     }
-                    className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/40"
+                    className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/40"
                   >
                     <option value="lite">lite</option>
                     <option value="stealth">stealth</option>
@@ -446,14 +446,14 @@ export function LivePreviewRunner({ template }: LivePreviewRunnerProps) {
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                <label className="text-xs uppercase tracking-[0.2em] text-white/40">
                   Goal
                 </label>
                 <textarea
                   value={goal}
                   onChange={(event) => setGoal(event.target.value)}
                   rows={4}
-                  className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none transition focus:border-cyan-400/40"
+                  className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm leading-6 text-white outline-none transition focus:border-cyan-400/40"
                 />
               </div>
 
@@ -461,7 +461,7 @@ export function LivePreviewRunner({ template }: LivePreviewRunnerProps) {
                 <Button
                   onClick={handleStart}
                   disabled={isRunning}
-                  className="bg-gradient-to-r from-emerald-500 to-cyan-500 text-white hover:from-emerald-600 hover:to-cyan-600"
+                  className="bg-white/10 border border-white/20 text-white hover:bg-white/20"
                 >
                   {isRunning ? (
                     <LoaderCircle className="size-4 animate-spin" />
@@ -481,13 +481,13 @@ export function LivePreviewRunner({ template }: LivePreviewRunnerProps) {
                 </Button>
               </div>
 
-              <div className="overflow-hidden rounded-[28px] border border-white/10 bg-slate-950">
-                <div className="border-b border-white/10 bg-slate-900/70 px-5 py-3">
+              <div className="overflow-hidden rounded-lg border border-white/10 bg-[#1E2638]">
+                <div className="border-b border-white/10 bg-white/5 px-5 py-3">
                   <div className="flex items-center gap-2">
                     <span className="h-3 w-3 rounded-full bg-rose-400" />
                     <span className="h-3 w-3 rounded-full bg-amber-400" />
                     <span className="h-3 w-3 rounded-full bg-emerald-400" />
-                    <div className="ml-3 flex-1 rounded-full border border-white/10 bg-black/30 px-4 py-2 text-xs text-slate-400">
+                    <div className="ml-3 flex-1 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-xs text-white/40">
                       {streamingUrl ?? "Waiting for STREAMING_URL event..."}
                     </div>
                   </div>
@@ -503,7 +503,7 @@ export function LivePreviewRunner({ template }: LivePreviewRunnerProps) {
                     />
                   </div>
                 ) : (
-                  <div className="flex aspect-video items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.18),_transparent_38%),linear-gradient(180deg,_rgba(15,23,42,1)_0%,_rgba(2,6,23,1)_100%)] p-8 text-center">
+                  <div className="flex aspect-video items-center justify-center bg-[#1E2638] p-8 text-center">
                     <div className="max-w-md space-y-3">
                       <StatusBadge
                         status={isRunning ? "checking" : "pending"}
@@ -512,7 +512,7 @@ export function LivePreviewRunner({ template }: LivePreviewRunnerProps) {
                       <h3 className="text-2xl font-semibold text-white">
                         {template.scenarioLabel}
                       </h3>
-                      <p className="text-sm leading-7 text-slate-300">
+                      <p className="text-sm leading-7 text-white/60">
                         {isRunning
                           ? "TinyFish has started the automation. The iframe will switch on as soon as the STREAMING_URL event arrives."
                           : "Start a live TinyFish run to watch the browser session here in real time."}
@@ -525,32 +525,32 @@ export function LivePreviewRunner({ template }: LivePreviewRunnerProps) {
           </Card>
 
           <div className="space-y-6">
-            <Card className="border-white/10 bg-white/5 shadow-2xl shadow-cyan-950/10 backdrop-blur-sm">
+            <Card className="border-white/10 bg-white/5">
               <CardHeader className="pb-4">
                 <CardTitle className="text-base">Run summary</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4 text-sm leading-7 text-slate-300">
-                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+              <CardContent className="space-y-4 text-sm leading-7 text-white/60">
+                <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-white/40">
                     Scenario
                   </p>
                   <p className="mt-2 text-base font-medium text-white">
                     {template.scenarioLabel}
                   </p>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-white/40">
                     Current run
                   </p>
-                  <p className="mt-2 break-all text-sm font-medium text-cyan-200">
+                  <p className="mt-2 break-all text-sm font-medium text-white/70">
                     {runId ?? "Waiting for STARTED event"}
                   </p>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-white/40">
                     Result
                   </p>
-                  <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap text-xs leading-6 text-slate-300">
+                  <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap text-xs leading-6 text-white/60">
                     {errorText ?? resultText ?? "No final result yet. TinyFish will stream progress here as events arrive."}
                   </pre>
                 </div>
