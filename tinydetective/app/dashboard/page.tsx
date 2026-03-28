@@ -3,9 +3,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Project } from "@/lib/types";
+import { hasEnvVars } from "@/lib/utils";
 
 export default function DashboardPage() {
-  const supabase = createClient();
+  const supabase = hasEnvVars ? createClient() : null;
 
   // Form state
   const [repoOwner, setRepoOwner] = useState("");
@@ -21,6 +22,11 @@ export default function DashboardPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const fetchProjects = useCallback(async () => {
+    if (!supabase) {
+      setIsLoading(false);
+      return;
+    }
+
     const { data, error } = await supabase
       .from("projects")
       .select("*")
@@ -38,6 +44,12 @@ export default function DashboardPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!supabase) {
+      setFormError("Configure Supabase before adding projects.");
+      return;
+    }
+
     setFormError(null);
     setIsSubmitting(true);
 
@@ -78,6 +90,10 @@ export default function DashboardPage() {
   };
 
   const handleDelete = async (projectId: string) => {
+    if (!supabase) {
+      return;
+    }
+
     const { error } = await supabase
       .from("projects")
       .delete()
@@ -99,6 +115,27 @@ export default function DashboardPage() {
     if (typeof window === "undefined") return "";
     return `${window.location.origin}/api/webhook?project_id=${projectId}`;
   };
+
+  if (!hasEnvVars) {
+    return (
+      <div className="flex-1 w-full">
+        <div className="rounded-3xl border border-amber-500/20 bg-amber-500/10 p-8 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-300">
+            Setup Required
+          </p>
+          <h1 className="mt-3 text-3xl font-bold text-foreground">
+            Connect Supabase to unlock the dashboard
+          </h1>
+          <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">
+            The landing page is ready to demo, but the authenticated dashboard
+            still depends on your Supabase environment variables. Add
+            `NEXT_PUBLIC_SUPABASE_URL` and
+            `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, then restart the app.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 w-full flex flex-col gap-8">
