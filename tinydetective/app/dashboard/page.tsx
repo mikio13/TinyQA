@@ -1,4 +1,3 @@
-import { DashboardProjectsPanel } from "@/components/dashboard/projects-panel";
 "use client";
 
 import Link from "next/link";
