@@ -1,526 +1,471 @@
-import Image from "next/image";
+"use client";
+
+import type { CSSProperties } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { hasEnvVars } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 
-const workflowSteps = [
-  {
-    eyebrow: "1. Pull Request Detected",
-    title: "One computer reads the code change.",
-    description:
-      "TinyDetective picks up the PR context, understands what changed, and translates it into a test mission worth validating.",
-  },
-  {
-    eyebrow: "2. Pixel Agents Move",
-    title: "Agents travel between systems.",
-    description:
-      "MetroCity characters carry intent from the repo to the staging environment, checking what actually renders on-screen.",
-  },
-  {
-    eyebrow: "3. Review Posted Back",
-    title: "The second computer sends evidence home.",
-    description:
-      "Screenshots, observations, and a pass or fail verdict return to GitHub as a clean PR comment your team can trust.",
-  },
-] as const;
+/* ================================================================
+   SCENE CONSTANTS
+   ================================================================ */
+const SCENE_W = 1120;
+const SCENE_H = 760;
+const TILE = 48; // 3× scale of 16px native tiles
 
-const features = [
-  {
-    title: "Visual PR Understanding",
-    description:
-      "Turn diffs into clear browser tasks instead of brittle hardcoded scripts.",
-    accent: "from-[#ff8a58] to-[#ffbe5c]",
-    asset: "/metrocity/showcase-2.png",
-    alt: "MetroCity character portrait",
-  },
-  {
-    title: "Live Agent Energy",
-    description:
-      "Pixel characters, animated signals, and live motion make the system feel active instead of abstract.",
-    accent: "from-[#5dd39e] to-[#0ea5e9]",
-    asset: "/metrocity/run-cycle-1.gif",
-    alt: "MetroCity running animation",
-  },
-  {
-    title: "Startup-Ready Demo Flow",
-    description:
-      "Show GitHub, staging, and the final review comment as one crisp loop during a live demo.",
-    accent: "from-[#a78bfa] to-[#60a5fa]",
-    asset: "/metrocity/run-cycle-2.gif",
-    alt: "MetroCity animated character",
-  },
-] as const;
+/* ================================================================
+   TYPES
+   ================================================================ */
+type Room = {
+  x: number; y: number; w: number; h: number;
+  tile: string; bg: string;
+};
+type WallDef = { x: number; y: number; w: number; h: number };
+type SpriteProps = {
+  src: string; alt: string;
+  x: number; y: number; w: number; h: number;
+  z?: number; flip?: boolean; cls?: string;
+};
+type AgentProps = {
+  x: number; y: number; charId: number;
+  dir: "down" | "up" | "right" | "left";
+  scale?: number; z?: number; cls?: string;
+};
 
-function CTACluster() {
-  return (
-    <div className="flex flex-col items-start gap-3 sm:flex-row">
-      <Link
-        href="/auth/sign-up"
-        className="inline-flex items-center justify-center rounded-full bg-[#ff8a58] px-6 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(255,138,88,0.35)] transition-transform duration-200 hover:-translate-y-0.5 hover:bg-[#ff7b44]"
-      >
-        Start Building
-      </Link>
-      <Link
-        href="/auth/login"
-        className="inline-flex items-center justify-center rounded-full border border-white/[0.14] bg-white/[0.06] px-6 py-3 text-sm font-semibold text-white/[0.88] backdrop-blur transition-colors duration-200 hover:bg-white/10"
-      >
-        View Dashboard
-      </Link>
-    </div>
-  );
-}
+/* ================================================================
+   SCENE DATA
+   ================================================================ */
 
-function ComputerStation({
-  label,
-  title,
-  detail,
-  tone,
-  align = "left",
-}: {
-  label: string;
-  title: string;
-  detail: string;
-  tone: string;
-  align?: "left" | "right";
-}) {
+// Rooms with base background-color + tiled floor image
+const rooms: Room[] = [
+  // Main office — warm brown wood floor
+  { x: 16, y: 16, w: 640, h: 480, tile: "/pixel-agents/assets/floors/floor_7.png", bg: "#B09060" },
+  // Top-right — bright kitchen/break area
+  { x: 672, y: 16, w: 432, h: 224, tile: "/pixel-agents/assets/floors/floor_0.png", bg: "#B0A890" },
+  // Bottom-right — cool meeting/review room
+  { x: 672, y: 256, w: 432, h: 488, tile: "/pixel-agents/assets/floors/floor_4.png", bg: "#506878" },
+  // Bottom-left — utility/lounge
+  { x: 16, y: 512, w: 320, h: 232, tile: "/pixel-agents/assets/floors/floor_5.png", bg: "#908070" },
+  // Bottom-mid — corridor area
+  { x: 352, y: 512, w: 304, h: 232, tile: "/pixel-agents/assets/floors/floor_1.png", bg: "#687080" },
+];
+
+// Walls — thin dark partitions
+const WALL_COLOR = "#1E2638";
+const walls: WallDef[] = [
+  // Outer boundary
+  { x: 0, y: 0, w: SCENE_W, h: 16 },       // top
+  { x: 0, y: 744, w: SCENE_W, h: 16 },      // bottom
+  { x: 0, y: 0, w: 16, h: SCENE_H },         // left
+  { x: 1104, y: 0, w: 16, h: SCENE_H },      // right
+  // Center vertical divider (with doorway gap 200–280)
+  { x: 656, y: 0, w: 16, h: 200 },
+  { x: 656, y: 280, w: 16, h: 232 },
+  // Right horizontal divider
+  { x: 656, y: 240, w: 464, h: 16 },
+  // Left horizontal divider (with doorway gap 280–380)
+  { x: 0, y: 496, w: 280, h: 16 },
+  { x: 380, y: 496, w: 292, h: 16 },
+];
+
+/* ================================================================
+   COMPONENTS
+   ================================================================ */
+
+function Floor({ x, y, w, h, tile, bg }: Room) {
   return (
     <div
-      className={`relative rounded-[30px] border border-white/10 bg-[#0d1723]/95 p-4 shadow-[0_28px_80px_rgba(0,0,0,0.35)] backdrop-blur ${
-        align === "right" ? "md:mt-16" : ""
-      }`}
+      aria-hidden
+      style={{
+        position: "absolute",
+        left: x, top: y, width: w, height: h,
+        backgroundColor: bg,
+        backgroundImage: `url(${tile})`,
+        backgroundSize: `${TILE}px ${TILE}px`,
+        backgroundRepeat: "repeat",
+        backgroundBlendMode: "multiply",
+        imageRendering: "pixelated" as CSSProperties["imageRendering"],
+      }}
+    />
+  );
+}
+
+function Wall({ x, y, w, h }: WallDef) {
+  return (
+    <div
+      aria-hidden
+      style={{
+        position: "absolute",
+        left: x, top: y, width: w, height: h,
+        backgroundColor: WALL_COLOR,
+      }}
+    />
+  );
+}
+
+/** Plain <img> for pixel art — avoids Next.js Image optimization that ruins pixel sprites */
+function Sprite({ src, alt, x, y, w, h, z = 12, flip, cls }: SpriteProps) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={alt}
+      width={w}
+      height={h}
+      className={`pixelated absolute ${cls ?? ""}`}
+      style={{
+        left: x, top: y, zIndex: z,
+        transform: flip ? "scaleX(-1)" : undefined,
+      }}
+      draggable={false}
+    />
+  );
+}
+
+/** Clickable sprite with a link — for interactive computer screens */
+function LinkedSprite({
+  src, alt, x, y, w, h, z = 12, cls, href, label,
+}: SpriteProps & { href: string; label: string }) {
+  return (
+    <Link
+      href={href}
+      className={`pixelated absolute block group ${cls ?? ""}`}
+      style={{ left: x, top: y, zIndex: z, width: w, height: h }}
+      title={label}
     >
-      <div className="rounded-[24px] border border-white/[0.08] bg-[#111c2a] p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-white/60">
-            {label}
-          </span>
-          <div className="flex gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-[#ff8a58]" />
-            <span className="h-2.5 w-2.5 rounded-full bg-[#ffcf5a]" />
-            <span className="h-2.5 w-2.5 rounded-full bg-[#42d392]" />
-          </div>
-        </div>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt={alt}
+        width={w}
+        height={h}
+        className="pixelated transition-transform duration-150 group-hover:scale-110 group-hover:brightness-125"
+        draggable={false}
+      />
+      <span
+        className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-[#1E2638]/90 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white"
+        style={{ top: -16, zIndex: 30 }}
+      >
+        {label}
+      </span>
+    </Link>
+  );
+}
+
+/** Clickable sprite with an action — for logout etc */
+function ActionSprite({
+  src, alt, x, y, w, h, z = 12, cls, label, onClick,
+}: SpriteProps & { label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`pixelated absolute block group ${cls ?? ""}`}
+      style={{ left: x, top: y, zIndex: z, width: w, height: h, background: "none", border: "none", padding: 0, cursor: "pointer" }}
+      title={label}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt={alt}
+        width={w}
+        height={h}
+        className="pixelated transition-transform duration-150 group-hover:scale-110 group-hover:brightness-125"
+        draggable={false}
+      />
+      <span
+        className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-[#1E2638]/90 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white"
+        style={{ top: -16, zIndex: 30 }}
+      >
+        {label}
+      </span>
+    </button>
+  );
+}
+
+/** Pixel-art speech bubble above a character */
+function SpeechBubble({ x, y, z = 25, text }: { x: number; y: number; z?: number; text: string }) {
+  return (
+    <div
+      className="absolute"
+      style={{ left: x, top: y, zIndex: z, transform: "translateX(-50%)" }}
+    >
+      <div
+        className="relative rounded-lg bg-white px-3 py-2 text-[11px] font-bold text-[#1E2638] shadow-md"
+        style={{ imageRendering: "auto", whiteSpace: "nowrap" }}
+      >
+        {text}
+        {/* Triangle pointer */}
         <div
-          className={`monitor-glow rounded-[20px] border border-white/10 bg-gradient-to-br ${tone} p-4 text-left text-[#07131d]`}
-        >
-          <div className="mb-6 flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.22em] text-[#07131d]/[0.65]">
-            <span>{title}</span>
-            <span className="rounded-full bg-[#07131d]/10 px-2 py-1 text-[10px]">
-              Live
-            </span>
-          </div>
-          <div className="space-y-2 rounded-[18px] bg-[#07131d]/9 p-3">
-            <div className="h-2 w-2/3 rounded-full bg-[#07131d]/[0.22]" />
-            <div className="h-2 w-1/2 rounded-full bg-[#07131d]/[0.18]" />
-            <div className="h-16 rounded-[16px] bg-[#07131d]/12" />
-          </div>
-          <p className="mt-4 text-sm font-medium leading-6 text-[#07131d]/[0.78]">
-            {detail}
-          </p>
-        </div>
+          className="absolute left-1/2 -bottom-2 -translate-x-1/2"
+          style={{
+            width: 0, height: 0,
+            borderLeft: "6px solid transparent",
+            borderRight: "6px solid transparent",
+            borderTop: "8px solid white",
+          }}
+        />
       </div>
-      <div className="mx-auto mt-3 h-4 w-28 rounded-full bg-black/30 blur-sm" />
     </div>
   );
 }
 
-function FeatureCard({
-  title,
-  description,
-  accent,
-  asset,
-  alt,
-}: (typeof features)[number]) {
-  const animated = asset.endsWith(".gif");
+/** Animated sprite-sheet character from char_*.png (16×32 per frame, 7 frames × 3 dirs) */
+function Agent({ x, y, charId, dir, scale = 4, z = 18, cls }: AgentProps) {
+  const fw = 16 * scale;
+  const fh = 32 * scale;
+  const sw = 112 * scale;
+  const sh = 96 * scale;
+  const rowIdx = dir === "down" ? 0 : dir === "up" ? 1 : 2;
+  const flip = dir === "left";
 
   return (
-    <article className="pixel-panel group relative overflow-hidden rounded-[28px] border border-white/10 bg-[#0d1723]/[0.88] p-6 shadow-[0_18px_60px_rgba(0,0,0,0.22)]">
+    <div
+      aria-hidden
+      className="absolute"
+      style={{ left: x, top: y, zIndex: z, transform: flip ? "scaleX(-1)" : undefined }}
+    >
       <div
-        className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${accent} opacity-80`}
+        className={`pixelated agent-bob ${cls ?? ""}`}
+        style={{
+          width: fw,
+          height: fh,
+          backgroundImage: `url('/pixel-agents/assets/characters/char_${charId}.png')`,
+          backgroundSize: `${sw}px ${sh}px`,
+          backgroundRepeat: "no-repeat",
+          backgroundPositionY: -rowIdx * fh,
+          imageRendering: "pixelated" as CSSProperties["imageRendering"],
+        }}
       />
-      <div className="mb-5 flex items-center justify-between">
-        <div className="max-w-[12rem]">
-          <h3 className="text-xl font-semibold tracking-tight text-white">
-            {title}
-          </h3>
-        </div>
-        <div className="rounded-[20px] border border-white/10 bg-white/5 p-2">
-          <Image
-            src={asset}
-            alt={alt}
-            width={80}
-            height={80}
-            unoptimized={animated}
-            className="pixelated h-16 w-16 object-contain"
-          />
-        </div>
-      </div>
-      <p className="text-sm leading-7 text-white/[0.68]">{description}</p>
-    </article>
+    </div>
   );
 }
 
+/* ================================================================
+   PAGE
+   ================================================================ */
 export default function Home() {
+  const [scale, setScale] = useState(0.85);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const update = () => {
+      const s = Math.min(window.innerWidth / SCENE_W, window.innerHeight / SCENE_H) * 0.94;
+      setScale(Math.max(0.4, s));
+    };
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => {
+      setIsLoggedIn(!!data.user);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(!!session?.user);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const pcSprite = (n: number) =>
+    isLoggedIn
+      ? `/pixel-agents/assets/furniture/PC/PC_FRONT_ON_${n}.png`
+      : "/pixel-agents/assets/furniture/PC/PC_FRONT_OFF.png";
+
+  const speechText = isLoggedIn
+    ? "What would you like to investigate?"
+    : "Hi, I'm Tiny QA! Please login to get started.";
+
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+  };
+
   return (
-    <main className="landing-shell relative min-h-screen overflow-hidden bg-[#09111a] text-white">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(255,138,88,0.12),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(93,211,158,0.14),_transparent_30%),linear-gradient(180deg,_rgba(255,255,255,0.02),_transparent_28%)]" />
-      <div className="landing-grid pointer-events-none absolute inset-0 opacity-50" />
+    <main
+      className={`flex flex-col items-center justify-center ${isLoggedIn ? "h-screen overflow-hidden" : "min-h-screen overflow-auto py-12"}`}
+      style={{ backgroundColor: WALL_COLOR }}
+    >
+      {/* Wrapper sizes to the visual scaled dimensions for proper centering */}
+      <div style={{ width: SCENE_W * scale, height: SCENE_H * scale }}>
+        <div
+          className="relative"
+          style={{
+            width: SCENE_W,
+            height: SCENE_H,
+            transform: `scale(${scale})`,
+            transformOrigin: "top left",
+          }}
+        >
+        {/* ── FLOOR ROOMS ──────────────────────────── */}
+        {rooms.map((r) => (
+          <Floor key={`${r.x}-${r.y}`} {...r} />
+        ))}
 
-      <div className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-6 pb-16 pt-6 sm:px-8 lg:px-10">
-        <header className="mb-12 flex flex-col gap-5 rounded-full border border-white/10 bg-white/5 px-5 py-4 backdrop-blur md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#ff8a58] to-[#ffcf5a] text-lg font-black text-[#09111a] shadow-[0_12px_28px_rgba(255,138,88,0.35)]">
-              TD
-            </div>
-            <div>
-              <div className="text-base font-semibold tracking-tight text-white">
-                TinyDetective
-              </div>
-              <div className="text-xs uppercase tracking-[0.24em] text-white/[0.45]">
-                AI Visual Testing For Pull Requests
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-3 text-xs font-medium text-white/60">
-            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
-              GitHub to Staging
-            </span>
-            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
-              Pixel Agents In Motion
-            </span>
-            <Link
-              href="/auth/login"
-              className="rounded-full border border-white/10 px-4 py-2 text-white transition-colors hover:bg-white/[0.08]"
-            >
-              Sign In
-            </Link>
-          </div>
-        </header>
+        {/* ── WALLS ────────────────────────────────── */}
+        {walls.map((w, i) => (
+          <Wall key={i} {...w} />
+        ))}
 
-        <section className="grid items-center gap-12 pb-20 lg:grid-cols-[1.05fr_0.95fr]">
-          <div className="max-w-2xl">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#ff8a58]/30 bg-[#ff8a58]/12 px-4 py-2 text-xs font-semibold uppercase tracking-[0.26em] text-[#ffd6c6]">
-              Startup-Quality Demo Layer
-            </div>
-            <h1 className="max-w-3xl text-5xl font-semibold leading-[1.02] tracking-[-0.05em] text-white sm:text-6xl lg:text-7xl">
-              Two computers talk.
-              <span className="block bg-gradient-to-r from-[#ff8a58] via-[#ffcf5a] to-[#5dd39e] bg-clip-text text-transparent">
-                Pixel agents carry the evidence.
-              </span>
-            </h1>
-            <p className="mt-6 max-w-xl text-lg leading-8 text-white/[0.68] sm:text-xl">
-              TinyDetective turns a pull request into a visible QA loop. One
-              machine understands the code change, another verifies the staging
-              experience, and animated agents bring the result back home.
-            </p>
+        {/* ═══════════════════════════════════════════
+            MAIN OFFICE — Wall decorations (top wall)
+            ═══════════════════════════════════════════ */}
+        <Sprite src="/pixel-agents/assets/furniture/DOUBLE_BOOKSHELF/DOUBLE_BOOKSHELF.png" alt="Bookshelf" x={40} y={20} w={96} h={96} />
+        <Sprite src="/pixel-agents/assets/furniture/DOUBLE_BOOKSHELF/DOUBLE_BOOKSHELF.png" alt="Bookshelf" x={148} y={20} w={96} h={96} />
+        <Sprite src="/pixel-agents/assets/furniture/DOUBLE_BOOKSHELF/DOUBLE_BOOKSHELF.png" alt="Bookshelf" x={370} y={20} w={96} h={96} />
+        <Sprite src="/pixel-agents/assets/furniture/DOUBLE_BOOKSHELF/DOUBLE_BOOKSHELF.png" alt="Bookshelf" x={478} y={20} w={96} h={96} />
+        <Sprite src="/pixel-agents/assets/furniture/HANGING_PLANT/HANGING_PLANT.png" alt="Hanging plant" x={268} y={16} w={48} h={96} />
+        <Sprite src="/pixel-agents/assets/furniture/HANGING_PLANT/HANGING_PLANT.png" alt="Hanging plant" x={588} y={16} w={48} h={96} />
+        <Sprite src="/pixel-agents/assets/furniture/LARGE_PLANT/LARGE_PLANT.png" alt="Plant" x={28} y={108} w={96} h={144} z={14} />
 
-            <div className="mt-8">
-              <CTACluster />
-            </div>
+        {/* ═══════════════════════════════════════════
+            MAIN OFFICE — Desk Row 1 (Workstations A & B)
+            The two important computer workstations
+            ═══════════════════════════════════════════ */}
 
-            {!hasEnvVars && (
-              <div className="mt-5 inline-flex max-w-xl rounded-2xl border border-[#ffcf5a]/25 bg-[#ffcf5a]/10 px-4 py-3 text-sm leading-6 text-[#ffe8a3]">
-                Supabase environment variables are not configured yet, so the
-                landing page stays public and static until auth is connected.
-              </div>
-            )}
+        {/* Workstation A — repo desk (clickable) */}
+        <Sprite src="/pixel-agents/assets/furniture/DESK/DESK_FRONT.png" alt="Desk A" x={100} y={150} w={144} h={96} z={14} />
+        <LinkedSprite src={pcSprite(1)} alt="Repo" x={148} y={150} w={48} h={96} z={15} cls="office-monitor office-monitor-a" href="/" label="Repo" />
+        <Sprite src="/pixel-agents/assets/furniture/CUSHIONED_CHAIR/CUSHIONED_CHAIR_BACK.png" alt="Chair" x={148} y={248} w={48} h={48} z={16} />
 
-            <div className="mt-10 grid gap-4 sm:grid-cols-3">
-              <div className="pixel-panel rounded-[24px] border border-white/10 bg-white/5 p-4">
-                <div className="text-2xl font-semibold text-white">PR In</div>
-                <p className="mt-2 text-sm leading-6 text-white/60">
-                  Understand what changed before opening the browser.
-                </p>
-              </div>
-              <div className="pixel-panel rounded-[24px] border border-white/10 bg-white/5 p-4">
-                <div className="text-2xl font-semibold text-white">Run Live</div>
-                <p className="mt-2 text-sm leading-6 text-white/60">
-                  Agents move between systems and validate the UI.
-                </p>
-              </div>
-              <div className="pixel-panel rounded-[24px] border border-white/10 bg-white/5 p-4">
-                <div className="text-2xl font-semibold text-white">Review Out</div>
-                <p className="mt-2 text-sm leading-6 text-white/60">
-                  Post screenshots, verdicts, and next actions back to GitHub.
-                </p>
-              </div>
-            </div>
-          </div>
+        {/* Workstation B — staging desk (clickable) */}
+        <Sprite src="/pixel-agents/assets/furniture/DESK/DESK_FRONT.png" alt="Desk B" x={370} y={150} w={144} h={96} z={14} />
+        <LinkedSprite src={pcSprite(2)} alt="Staging" x={418} y={150} w={48} h={96} z={15} cls="office-monitor office-monitor-b" href="/" label="Staging" />
+        <Sprite src="/pixel-agents/assets/furniture/CUSHIONED_CHAIR/CUSHIONED_CHAIR_BACK.png" alt="Chair" x={418} y={248} w={48} h={48} z={16} />
 
-          <div className="relative">
-            <div className="pixel-panel relative overflow-hidden rounded-[36px] border border-white/10 bg-[#0b1622]/[0.92] p-5 shadow-[0_35px_120px_rgba(0,0,0,0.4)] backdrop-blur">
-              <div className="absolute -left-20 top-8 h-44 w-44 rounded-full bg-[#ff8a58]/[0.18] blur-3xl" />
-              <div className="absolute -right-10 bottom-5 h-52 w-52 rounded-full bg-[#42d392]/[0.14] blur-3xl" />
+        {/* ═══════════════════════════════════════════
+            MAIN OFFICE — Desk Row 2
+            ═══════════════════════════════════════════ */}
+        <Sprite src="/pixel-agents/assets/furniture/DESK/DESK_FRONT.png" alt="Desk" x={100} y={350} w={144} h={96} z={14} />
+        <LinkedSprite src={pcSprite(3)} alt="Review" x={148} y={350} w={48} h={96} z={15} cls="office-monitor office-monitor-c" href="/auth/login" label="Review" />
+        <Sprite src="/pixel-agents/assets/furniture/CUSHIONED_CHAIR/CUSHIONED_CHAIR_BACK.png" alt="Chair" x={148} y={448} w={48} h={48} z={16} />
 
-              <div className="relative rounded-[30px] border border-white/10 bg-[#07131d] p-4">
-                <div className="mb-4 flex items-center justify-between">
-                  <div>
-                    <div className="text-xs uppercase tracking-[0.28em] text-white/[0.42]">
-                      TinyDetective Live Scene
-                    </div>
-                    <div className="mt-1 text-sm text-white/60">
-                      Inspired by playful pixel-agent systems
-                    </div>
-                  </div>
-                  <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/[0.65]">
-                    MetroCity Characters
-                  </div>
-                </div>
+        <Sprite src="/pixel-agents/assets/furniture/DESK/DESK_FRONT.png" alt="Desk" x={370} y={350} w={144} h={96} z={14} />
+        {isLoggedIn ? (
+          <ActionSprite src={pcSprite(1)} alt="Logout" x={418} y={350} w={48} h={96} z={15} label="Logout" onClick={handleLogout} />
+        ) : (
+          <LinkedSprite src={pcSprite(1)} alt="Login" x={418} y={350} w={48} h={96} z={15} href="/auth/login" label="Login" />
+        )}
+        <Sprite src="/pixel-agents/assets/furniture/CUSHIONED_CHAIR/CUSHIONED_CHAIR_BACK.png" alt="Chair" x={418} y={448} w={48} h={48} z={16} />
 
-                <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[#0c1724] px-4 pb-5 pt-6">
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_10%,_rgba(255,138,88,0.12),_transparent_18%),radial-gradient(circle_at_82%_18%,_rgba(93,211,158,0.14),_transparent_22%)]" />
-                  <div className="landing-grid absolute inset-0 opacity-35" />
+        {/* Main office small items */}
+        <Sprite src="/pixel-agents/assets/furniture/BIN/BIN.png" alt="Bin" x={590} y={448} w={48} h={48} z={14} />
+        <Sprite src="/pixel-agents/assets/furniture/PLANT/PLANT.png" alt="Plant" x={596} y={100} w={48} h={96} z={14} />
+        <Sprite src="/pixel-agents/assets/furniture/PLANT_2/PLANT_2.png" alt="Plant" x={28} y={400} w={48} h={96} z={14} />
 
-                  <div className="absolute left-[20%] top-[46%] z-10 h-[2px] w-[60%] overflow-hidden rounded-full bg-white/12">
-                    <span className="signal-packet delay-0" />
-                    <span className="signal-packet delay-1" />
-                    <span className="signal-packet delay-2" />
-                  </div>
+        {/* ═══════════════════════════════════════════
+            TOP-RIGHT ROOM — Kitchen / Break area
+            ═══════════════════════════════════════════ */}
+        <Sprite src="/pixel-agents/assets/furniture/BOOKSHELF/BOOKSHELF.png" alt="Bookshelf" x={700} y={24} w={96} h={48} />
+        <Sprite src="/pixel-agents/assets/furniture/DOUBLE_BOOKSHELF/DOUBLE_BOOKSHELF.png" alt="Shelf" x={810} y={20} w={96} h={96} />
+        <Sprite src="/pixel-agents/assets/furniture/CLOCK/CLOCK.png" alt="Clock" x={920} y={20} w={48} h={96} z={20} />
+        <Sprite src="/pixel-agents/assets/furniture/COFFEE/COFFEE.png" alt="Coffee station" x={1000} y={28} w={48} h={48} z={16} />
+        <Sprite src="/pixel-agents/assets/furniture/SMALL_TABLE/SMALL_TABLE_FRONT.png" alt="Table" x={1000} y={80} w={96} h={96} z={14} />
+        <Sprite src="/pixel-agents/assets/furniture/CACTUS/CACTUS.png" alt="Cactus" x={690} y={160} w={48} h={96} z={14} />
 
-                  <div className="relative z-20 grid gap-6 md:grid-cols-2">
-                    <ComputerStation
-                      label="Computer A"
-                      title="GitHub PR"
-                      detail="Summarize the diff, draft the test goal, and send the mission across the line."
-                      tone="from-[#ffd3c2] via-[#ffb889] to-[#ff8a58]"
-                    />
-                    <ComputerStation
-                      label="Computer B"
-                      title="Staging Runner"
-                      detail="Inspect the live UI, capture evidence, and return a verdict with screenshots."
-                      tone="from-[#d6fff1] via-[#93f0c7] to-[#52d6a5]"
-                      align="right"
-                    />
-                  </div>
+        {/* ═══════════════════════════════════════════
+            BOTTOM-RIGHT ROOM — Meeting / Review room
+            ═══════════════════════════════════════════ */}
 
-                  <div className="relative z-20 mt-8 rounded-[24px] border border-white/10 bg-black/[0.18] px-4 py-5">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <span className="text-xs uppercase tracking-[0.25em] text-white/[0.45]">
-                        Agent corridor
-                      </span>
-                      <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs text-white/[0.65]">
-                        Two systems, one review loop
-                      </span>
-                    </div>
-                    <div className="relative mt-5 h-24 overflow-hidden rounded-[20px] border border-white/[0.08] bg-[linear-gradient(180deg,_rgba(255,255,255,0.02),_transparent)]">
-                      <div className="absolute inset-x-0 bottom-5 h-2 bg-[repeating-linear-gradient(90deg,rgba(255,255,255,0.14)_0,rgba(255,255,255,0.14)_38px,transparent_38px,transparent_64px)] opacity-60" />
-                      <div className="absolute left-6 top-3 rounded-full border border-white/10 bg-[#ff8a58]/16 px-3 py-1 text-[11px] font-semibold text-[#ffd6c6]">
-                        PR opened
-                      </div>
-                      <div className="absolute right-6 top-3 rounded-full border border-white/10 bg-[#42d392]/16 px-3 py-1 text-[11px] font-semibold text-[#d5fff0]">
-                        Review posted
-                      </div>
+        {/* Left desk cluster — no PCs */}
+        <Sprite src="/pixel-agents/assets/furniture/DESK/DESK_SIDE.png" alt="Desk" x={686} y={280} w={48} h={192} z={15} />
+        <Sprite src="/pixel-agents/assets/furniture/BOOKSHELF/BOOKSHELF.png" alt="Bookshelf" x={680} y={480} w={96} h={48} z={14} />
 
-                      <div className="pixel-float absolute left-8 bottom-4">
-                        <Image
-                          src="/metrocity/run-cycle-1.gif"
-                          alt="MetroCity character running from the code computer"
-                          width={86}
-                          height={86}
-                          unoptimized
-                          className="pixelated h-[86px] w-[86px] object-contain"
-                        />
-                      </div>
-                      <div className="pixel-float-delayed absolute left-1/2 bottom-6 -translate-x-1/2">
-                        <Image
-                          src="/metrocity/showcase-2.png"
-                          alt="MetroCity detective character"
-                          width={64}
-                          height={64}
-                          className="pixelated h-16 w-16 object-contain"
-                        />
-                      </div>
-                      <div className="pixel-float-slow absolute right-8 bottom-4">
-                        <Image
-                          src="/metrocity/run-cycle-2.gif"
-                          alt="MetroCity character at the staging computer"
-                          width={86}
-                          height={86}
-                          unoptimized
-                          className="pixelated h-[86px] w-[86px] object-contain"
-                        />
-                      </div>
-                    </div>
-                  </div>
+        {/* Right desk cluster — no PCs */}
+        <Sprite src="/pixel-agents/assets/furniture/DESK/DESK_SIDE.png" alt="Desk" x={1040} y={280} w={48} h={192} z={15} flip />
+        <Sprite src="/pixel-agents/assets/furniture/BOOKSHELF/BOOKSHELF.png" alt="Bookshelf" x={990} y={480} w={96} h={48} z={14} />
 
-                  <div className="relative z-20 mt-4 grid gap-3 sm:grid-cols-3">
-                    <div className="rounded-[20px] border border-white/10 bg-white/5 p-3">
-                      <div className="text-[11px] uppercase tracking-[0.26em] text-white/[0.45]">
-                        Input
-                      </div>
-                      <div className="mt-2 text-sm font-medium text-white/[0.85]">
-                        PR diff + context
-                      </div>
-                    </div>
-                    <div className="rounded-[20px] border border-white/10 bg-white/5 p-3">
-                      <div className="text-[11px] uppercase tracking-[0.26em] text-white/[0.45]">
-                        Motion
-                      </div>
-                      <div className="mt-2 text-sm font-medium text-white/[0.85]">
-                        Agents verify staging
-                      </div>
-                    </div>
-                    <div className="rounded-[20px] border border-white/10 bg-white/5 p-3">
-                      <div className="text-[11px] uppercase tracking-[0.26em] text-white/[0.45]">
-                        Output
-                      </div>
-                      <div className="mt-2 text-sm font-medium text-white/[0.85]">
-                        Screenshot-backed review
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+        {/* Painting and decorations */}
+        <Sprite src="/pixel-agents/assets/furniture/LARGE_PAINTING/LARGE_PAINTING.png" alt="Painting" x={840} y={260} w={96} h={96} z={11} />
+        <Sprite src="/pixel-agents/assets/furniture/PLANT/PLANT.png" alt="Plant" x={690} y={540} w={48} h={96} z={14} />
+        <Sprite src="/pixel-agents/assets/furniture/PLANT/PLANT.png" alt="Plant" x={1050} y={540} w={48} h={96} z={14} />
 
-        <section className="grid gap-8 pb-20 lg:grid-cols-[0.85fr_1.15fr]">
-          <div className="max-w-lg">
-            <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[#ffb89a]">
-              How It Works
-            </div>
-            <h2 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white sm:text-4xl">
-              A visual explanation that feels alive, not corporate.
-            </h2>
-            <p className="mt-4 text-base leading-8 text-white/[0.64]">
-              The page tells one simple story: code changes on one side, live
-              verification on the other, and characters moving through the
-              middle to make the handoff tangible.
-            </p>
+        {/* Dashboard whiteboard — only when logged in */}
+        {isLoggedIn && (
+          <LinkedSprite src="/pixel-agents/assets/furniture/WHITEBOARD/WHITEBOARD.png" alt="Dashboard" x={840} y={400} w={96} h={96} z={15} href="/dashboard" label="Dashboard" />
+        )}
 
-            <div className="pixel-panel mt-8 overflow-hidden rounded-[28px] border border-white/10 bg-[#0d1723]/[0.88] p-4">
-              <div className="rounded-[22px] border border-white/10 bg-[#101b29] p-3">
-                <Image
-                  src="/metrocity/pack-cover.png"
-                  alt="MetroCity character pack overview"
-                  width={640}
-                  height={256}
-                  className="pixelated h-auto w-full rounded-[18px] object-cover"
-                />
-              </div>
-              <p className="mt-4 text-sm leading-7 text-white/[0.62]">
-                Character visuals are sourced from the MetroCity free top-down
-                character pack, then staged in a cleaner startup-style interface.
-              </p>
-            </div>
-          </div>
+        {/* Sofa lounge area — centered in room */}
+        <Sprite src="/pixel-agents/assets/furniture/SOFA/SOFA_FRONT.png" alt="Sofa" x={840} y={500} w={96} h={48} z={14} />
+        <Sprite src="/pixel-agents/assets/furniture/SOFA/SOFA_BACK.png" alt="Sofa" x={840} y={580} w={96} h={48} z={14} />
+        <Sprite src="/pixel-agents/assets/furniture/COFFEE_TABLE/COFFEE_TABLE.png" alt="Coffee table" x={840} y={530} w={96} h={96} z={13} />
+        <Sprite src="/pixel-agents/assets/furniture/COFFEE/COFFEE.png" alt="Coffee" x={870} y={550} w={48} h={48} z={20} />
 
-          <div className="grid gap-4">
-            {workflowSteps.map((step, index) => (
-              <article
-                key={step.title}
-                className="pixel-panel relative overflow-hidden rounded-[28px] border border-white/10 bg-[#0d1723]/[0.88] p-6"
-              >
-                <div className="absolute right-5 top-5 text-5xl font-semibold tracking-[-0.08em] text-white/[0.06]">
-                  0{index + 1}
-                </div>
-                <div className="relative max-w-2xl">
-                  <div className="text-xs font-semibold uppercase tracking-[0.26em] text-[#8fd9bc]">
-                    {step.eyebrow}
-                  </div>
-                  <h3 className="mt-3 text-2xl font-semibold tracking-[-0.03em] text-white">
-                    {step.title}
-                  </h3>
-                  <p className="mt-3 text-sm leading-7 text-white/[0.64]">
-                    {step.description}
-                  </p>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
+        {/* ═══════════════════════════════════════════
+            BOTTOM-LEFT — Lounge / Break
+            ═══════════════════════════════════════════ */}
+        <Sprite src="/pixel-agents/assets/furniture/CUSHIONED_BENCH/CUSHIONED_BENCH.png" alt="Bench" x={40} y={536} w={96} h={48} z={14} />
+        <Sprite src="/pixel-agents/assets/furniture/CUSHIONED_BENCH/CUSHIONED_BENCH.png" alt="Bench" x={200} y={536} w={96} h={48} z={14} />
+        <Sprite src="/pixel-agents/assets/furniture/COFFEE_TABLE/COFFEE_TABLE.png" alt="Table" x={120} y={536} w={96} h={96} z={13} />
+        <Sprite src="/pixel-agents/assets/furniture/LARGE_PLANT/LARGE_PLANT.png" alt="Plant" x={28} y={596} w={96} h={144} z={14} />
 
-        <section className="pb-20">
-          <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[#8fd9bc]">
-                Features
-              </div>
-              <h2 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white sm:text-4xl">
-                Built to look modern while staying playfully pixelated.
-              </h2>
-            </div>
-            <p className="max-w-lg text-sm leading-7 text-white/60">
-              The visual system borrows the charm of Pixel Agents and grounds it
-              in a cleaner product frame for TinyDetective.
-            </p>
-          </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
-            {features.map((feature) => (
-              <FeatureCard key={feature.title} {...feature} />
-            ))}
-          </div>
-        </section>
+        {/* Bottom-mid area */}
+        <Sprite src="/pixel-agents/assets/furniture/PLANT_2/PLANT_2.png" alt="Plant" x={420} y={580} w={48} h={96} z={14} />
+        <Sprite src="/pixel-agents/assets/furniture/SMALL_TABLE/SMALL_TABLE_FRONT.png" alt="Table" x={468} y={580} w={96} h={96} z={14} />
+        <Sprite src="/pixel-agents/assets/furniture/CACTUS/CACTUS.png" alt="Cactus" x={564} y={600} w={48} h={96} z={14} />
 
-        <section className="pb-8">
-          <div className="pixel-panel relative overflow-hidden rounded-[36px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,138,88,0.16),rgba(93,211,158,0.12),rgba(96,165,250,0.12))] p-8 shadow-[0_30px_100px_rgba(0,0,0,0.35)] sm:p-10">
-            <div className="absolute -right-12 top-0 h-48 w-48 rounded-full bg-[#5dd39e]/[0.18] blur-3xl" />
-            <div className="absolute -left-12 bottom-0 h-48 w-48 rounded-full bg-[#ff8a58]/[0.16] blur-3xl" />
-
-            <div className="relative grid items-center gap-8 lg:grid-cols-[1fr_auto]">
-              <div className="max-w-2xl">
-                <div className="text-xs font-semibold uppercase tracking-[0.28em] text-white/[0.55]">
-                  Call To Action
-                </div>
-                <h2 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white sm:text-4xl">
-                  Let the computers talk. Let the agents bring back proof.
-                </h2>
-                <p className="mt-4 text-base leading-8 text-white/[0.68]">
-                  Connect a repo, point TinyDetective at staging, and turn pull
-                  requests into visible review loops your team can actually demo.
-                </p>
-              </div>
-
-              <div className="flex flex-col items-center gap-4">
-                <div className="relative flex items-center gap-3 rounded-[28px] border border-white/10 bg-[#081119]/80 px-5 py-4 backdrop-blur">
-                  <Image
-                    src="/metrocity/run-cycle-3.gif"
-                    alt="MetroCity runner character"
-                    width={72}
-                    height={72}
-                    unoptimized
-                    className="pixelated h-[72px] w-[72px] object-contain"
-                  />
-                  <Image
-                    src="/metrocity/showcase-2.png"
-                    alt="MetroCity character portrait"
-                    width={56}
-                    height={56}
-                    className="pixelated h-14 w-14 object-contain"
-                  />
-                </div>
-                <CTACluster />
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <footer className="mt-auto flex flex-col gap-4 border-t border-white/10 pt-8 text-sm text-white/[0.45] sm:flex-row sm:items-center sm:justify-between">
-          <p>
-            TinyDetective for the TinyFish x OpenAI Hackathon. Character visuals
-            reference the MetroCity pack by JIK-A-4.
-          </p>
-          <div className="flex items-center gap-4">
-            <a
-              href="https://github.com/pablodelucca/pixel-agents"
-              target="_blank"
-              rel="noreferrer"
-              className="transition-colors hover:text-white"
-            >
-              Pixel Agents inspiration
-            </a>
-            <a
-              href="https://jik-a-4.itch.io/metrocity-free-topdown-character-pack"
-              target="_blank"
-              rel="noreferrer"
-              className="transition-colors hover:text-white"
-            >
-              MetroCity assets
-            </a>
-          </div>
-        </footer>
+        {/* ═══════════════════════════════════════════
+            CHARACTER — Blue shirt/vest agent centered between 4 desks
+            ═══════════════════════════════════════════ */}
+        <SpeechBubble x={304} y={210} text={speechText} />
+        <Agent x={268} y={250} charId={4} dir="down" scale={4.5} z={17} />
+        </div>
       </div>
+
+      {/* ── Chat prompt (logged in only) ─── */}
+      {isLoggedIn && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 flex justify-center px-4 pb-5">
+          <div className="flex w-full max-w-xl items-center gap-2 rounded-xl border border-white/10 bg-[#1E2638]/90 px-4 py-3 shadow-lg backdrop-blur-sm">
+            <input
+              type="text"
+              placeholder="Ask Tiny QA..."
+              className="flex-1 bg-transparent text-sm text-white placeholder-white/40 outline-none"
+              readOnly
+            />
+            <button
+              className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 text-white/60 transition-colors hover:bg-white/20 hover:text-white"
+              aria-label="Send"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                <path d="M3.105 2.288a.75.75 0 0 0-.826.95l1.414 4.926A1.5 1.5 0 0 0 5.135 9.25h6.115a.75.75 0 0 1 0 1.5H5.135a1.5 1.5 0 0 0-1.442 1.086l-1.414 4.926a.75.75 0 0 0 .826.95l14.095-5.638a.75.75 0 0 0 0-1.398L3.105 2.289Z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Info section below the office (logged out only) ─── */}
+      {!isLoggedIn && (
+        <div className="mt-12 w-full max-w-2xl px-6 pb-12">
+          <h1 className="mb-4 text-center text-2xl font-bold text-white">
+            Tiny QA
+          </h1>
+          <p className="mb-8 text-center text-sm text-white/60">
+            Your AI-powered QA assistant that lives in a pixel-art office
+          </p>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+              <h3 className="mb-1 text-sm font-semibold text-white">Monitor Repos</h3>
+              <p className="text-xs text-white/50">Track changes across your repositories and get notified when something needs attention.</p>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+              <h3 className="mb-1 text-sm font-semibold text-white">Staging Checks</h3>
+              <p className="text-xs text-white/50">Keep an eye on staging deployments and catch issues before they hit production.</p>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+              <h3 className="mb-1 text-sm font-semibold text-white">Code Reviews</h3>
+              <p className="text-xs text-white/50">Automated code review powered by AI to help you ship better code faster.</p>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+              <h3 className="mb-1 text-sm font-semibold text-white">Real-time Alerts</h3>
+              <p className="text-xs text-white/50">Get notifications when repos update, staging deploys, or reviews need your attention.</p>
+            </div>
+          </div>
+
+        </div>
+      )}
     </main>
   );
 }
