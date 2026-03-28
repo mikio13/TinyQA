@@ -8,9 +8,9 @@ const defaultUrl = process.env.VERCEL_URL
 
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
-  title: "TinyDetective",
+  title: "TinyQA",
   description:
-    "Autonomous AI visual testing for pull requests with a playful pixel-agent interface.",
+    "Autonomous AI visual testing for pull requests with a playful TinyQA operator interface.",
 };
 
 export default function RootLayout({

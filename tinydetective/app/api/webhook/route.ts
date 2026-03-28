@@ -1,14 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin-client";
+import {
+  createRun,
+  deriveWebhookRunStatus,
+  persistTinyFishLifecycleEvent,
+  type TinyFishSseEvent,
+  updateRun,
+} from "@/lib/runs";
 import { Octokit } from "@octokit/rest";
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { ChatOpenAI } from "@langchain/openai";
 import { SystemMessage, HumanMessage } from "@langchain/core/messages";
-import type { Project, WebhookPayload, TinyFishRunStatus } from "@/lib/types";
+import type {
+  Project,
+  RunRecord,
+  WebhookPayload,
+} from "@/lib/types";
 
-const model = new ChatGoogleGenerativeAI({
-  model: "gemini-2.5-flash-lite",
-  apiKey: process.env.GEMINI_API_KEY,
+const model = new ChatOpenAI({
+  model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+  apiKey: process.env.OPENAI_API_KEY,
 });
+
+const TINYFISH_STREAM_URL = "https://agent.tinyfish.ai/v1/automation/run-sse";
 
 /**
  * POST /api/webhook?project_id=<UUID>
@@ -17,11 +30,10 @@ const model = new ChatGoogleGenerativeAI({
  * 1. Return 200 immediately so GitHub doesn't timeout
  * 2. Fetch project config from Supabase
  * 3. Get PR diff from GitHub via Octokit
- * 4. Generate test command via OpenAI
- * 5. Execute test via TinyFish browser automation
- * 6. Poll for completion
- * 7. Generate code review via OpenAI
- * 8. Post review comment back to GitHub PR
+ * 4. Generate test command via Gemini
+ * 5. Execute TinyFish via SSE and persist STREAMING_URL early
+ * 6. Generate code review via Gemini
+ * 7. Post review comment back to GitHub PR
  */
 export async function POST(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -30,7 +42,7 @@ export async function POST(request: NextRequest) {
   const delivery = request.headers.get("x-github-delivery");
   const contentType = request.headers.get("content-type");
 
-  console.log("[TinyDetective Webhook] Incoming request", {
+  console.log("[TinyQA Webhook] Incoming request", {
     delivery,
     event,
     projectId,
@@ -39,69 +51,68 @@ export async function POST(request: NextRequest) {
   });
 
   if (!projectId) {
-    console.error("[TinyDetective Webhook] Missing project_id");
+    console.error("[TinyQA Webhook] Missing project_id");
     return NextResponse.json(
       { error: "project_id is required" },
       { status: 400 }
     );
   }
 
-  // Parse the GitHub webhook payload
   let payload: WebhookPayload;
   try {
     payload = await request.json();
   } catch (error) {
-    console.error("[TinyDetective Webhook] Invalid JSON payload", error);
+    console.error("[TinyQA Webhook] Invalid JSON payload", error);
     return NextResponse.json(
       { error: "Invalid JSON payload" },
       { status: 400 }
     );
   }
 
-  // Only process pull_request events with relevant actions
   const action = payload.action;
   if (!action || !["opened", "synchronize", "reopened"].includes(action)) {
-    console.log("[TinyDetective Webhook] Ignored action", { action, event });
+    console.log("[TinyQA Webhook] Ignored action", { action, event });
     return NextResponse.json({ message: "Ignored event action" });
   }
 
   if (!payload.pull_request) {
-    console.log("[TinyDetective Webhook] Ignored non-PR payload", { event });
+    console.log("[TinyQA Webhook] Ignored non-PR payload", { event });
     return NextResponse.json({ message: "Not a pull_request event" });
   }
 
-  console.log("[TinyDetective Webhook] Accepted pull request event", {
+  console.log("[TinyQA Webhook] Accepted pull request event", {
     action,
     prNumber: payload.pull_request.number,
     repository: payload.repository.full_name,
   });
 
-  // Return 200 immediately — process async
-  // Using a fire-and-forget pattern for the long-running pipeline
-  const responsePromise = processWebhook(projectId, payload);
+  const responsePromise = processWebhook(projectId, payload, {
+    delivery,
+    event,
+  });
 
-  // Don't await — let it run in the background
   responsePromise.catch((err) =>
-    console.error("[TinyDetective Webhook] Pipeline error:", err)
+    console.error("[TinyQA Webhook] Pipeline error:", err)
   );
 
   return NextResponse.json({ received: true, project_id: projectId });
 }
 
-// ─── Async Pipeline ──────────────────────────────────────────────────────────
-
 async function processWebhook(
   projectId: string,
-  payload: WebhookPayload
+  payload: WebhookPayload,
+  metadata: {
+    delivery: string | null;
+    event: string | null;
+  }
 ): Promise<void> {
   const supabase = createAdminClient();
   const pr = payload.pull_request;
 
   console.log(
-    `[TinyDetective] Processing PR #${pr.number}: "${pr.title}" on ${payload.repository.full_name}`
+    `[TinyQA] Processing PR #${pr.number}: "${pr.title}" on ${payload.repository.full_name}`
   );
 
-  // ── Step 1: Fetch project config ──
   const { data: project, error: projectError } = await supabase
     .from("projects")
     .select("*")
@@ -109,53 +120,86 @@ async function processWebhook(
     .single();
 
   if (projectError || !project) {
-    console.error("[TinyDetective] Project not found:", projectId, projectError);
+    console.error("[TinyQA] Project not found:", projectId, projectError);
     return;
   }
 
   const proj = project as Project;
+  let runRecord: RunRecord | null = null;
 
-  // ── Step 2: Gather context from GitHub ──
-  const octokit = new Octokit({ auth: proj.github_pat });
+  try {
+    runRecord = await createRun({
+      project_id: proj.id,
+      user_id: proj.user_id,
+      source: "webhook",
+      status: "queued",
+      repo_full_name: `${proj.repo_owner}/${proj.repo_name}`,
+      target_url: proj.staging_url,
+      github_delivery_id: metadata.delivery,
+      github_event: metadata.event,
+      pr_number: pr.number,
+      pr_title: pr.title,
+      pr_url: pr.html_url,
+    });
+  } catch (error) {
+    console.error("[TinyQA] Failed to create run record:", error);
+  }
 
-  // Fetch PR details
-  const { data: prData } = await octokit.pulls.get({
-    owner: proj.repo_owner,
-    repo: proj.repo_name,
-    pull_number: pr.number,
-  });
+  try {
+    const octokit = new Octokit({ auth: proj.github_pat });
+    const targetUrl = proj.staging_url;
+    // Temporarily forced to deployed/staging URL because Vercel preview URLs
+    // may require an authenticated Vercel session that TinyFish cannot access.
+    // Keep this resolver block for future re-enable once preview access is public.
+    /*
+    const targetUrl = await resolveTargetUrlForPr({
+      octokit,
+      owner: proj.repo_owner,
+      repo: proj.repo_name,
+      prHeadSha: pr.head.sha,
+      fallbackUrl: proj.staging_url,
+    });
 
-  // Fetch the diff
-  const diffResponse = await fetch(prData.diff_url, {
-    headers: {
-      Authorization: `Bearer ${proj.github_pat}`,
-      Accept: "application/vnd.github.v3.diff",
-    },
-  });
-  const diff = await diffResponse.text();
+    if (runRecord) {
+      runRecord = await updateRun(runRecord.id, {
+        target_url: targetUrl,
+      });
+    }
+    */
 
-  // Truncate diff if too long (LLM context limits)
-  const maxDiffLength = 8000;
-  const truncatedDiff =
-    diff.length > maxDiffLength
-      ? diff.slice(0, maxDiffLength) + "\n... [diff truncated]"
-      : diff;
+    const { data: prData } = await octokit.pulls.get({
+      owner: proj.repo_owner,
+      repo: proj.repo_name,
+      pull_number: pr.number,
+    });
 
-  console.log(
-    `[TinyDetective] Fetched PR #${pr.number} — diff is ${diff.length} chars`
-  );
+    const diffResponse = await fetch(prData.diff_url, {
+      headers: {
+        Authorization: `Bearer ${proj.github_pat}`,
+        Accept: "application/vnd.github.v3.diff",
+      },
+    });
+    const diff = await diffResponse.text();
+    const maxDiffLength = 8000;
+    const truncatedDiff =
+      diff.length > maxDiffLength
+        ? `${diff.slice(0, maxDiffLength)}\n... [diff truncated]`
+        : diff;
 
-  // ── Step 3: Generate test command via LangChain LLM ──
-  const qaResponse = await model.invoke([
-    new SystemMessage(
-      `You are a QA Engineer. Translate this PR description and code diff into a single, strict, 1-2 sentence command for a browser automation bot to test this feature on a staging UI. 
+    console.log(
+      `[TinyQA] Fetched PR #${pr.number} — diff is ${diff.length} chars`
+    );
+
+    const qaResponse = await model.invoke([
+      new SystemMessage(
+        `You are a QA Engineer. Translate this PR description and code diff into a single, strict, 1-2 sentence command for a browser automation bot to test this feature on a staging UI. 
         
 The command should be specific and actionable — tell the bot exactly what to navigate to, what to click, what to type, and what to verify. 
 Focus on the most impactful visual/functional change in the PR.
 Return ONLY the command text, nothing else.`
-    ),
-    new HumanMessage(
-      `PR Title: ${prData.title}
+      ),
+      new HumanMessage(
+        `PR Title: ${prData.title}
 
 PR Description:
 ${prData.body || "(no description)"}
@@ -163,86 +207,33 @@ ${prData.body || "(no description)"}
 Code Diff:
 ${truncatedDiff}
 
-Staging URL: ${proj.staging_url}`
-    ),
-  ]);
+Target URL: ${targetUrl}`
+      ),
+    ]);
 
-  const testCommand =
-    (typeof qaResponse.content === "string" ? qaResponse.content.trim() : "") ||
-    "Navigate to the staging URL and check if the page loads correctly.";
+    const testCommand =
+      (typeof qaResponse.content === "string" ? qaResponse.content.trim() : "") ||
+      "Navigate to the target preview URL and check if the page loads correctly.";
 
-  console.log(`[TinyDetective] Generated test command: ${testCommand}`);
+    console.log(`[TinyQA] Generated test command: ${testCommand}`);
 
-  // ── Step 4: Execute via TinyFish ──
-  const tinyfishResponse = await fetch(
-    "https://agent.tinyfish.ai/v1/automation/run-async",
-    {
-      method: "POST",
-      headers: {
-        "X-API-Key": process.env.TINYFISH_API_KEY!,
-        "Content-Type": "application/json",
-        browser_profile: "stealth",
-      },
-      body: JSON.stringify({
-        url: proj.staging_url,
+    if (runRecord) {
+      runRecord = await updateRun(runRecord.id, {
         goal: testCommand,
-      }),
+        browser_profile: "stealth",
+      });
     }
-  );
 
-  if (!tinyfishResponse.ok) {
-    const errText = await tinyfishResponse.text();
-    console.error("[TinyDetective] TinyFish run-async failed:", errText);
+    const tinyFishResult = await runTinyFishSse({
+      runId: runRecord?.id ?? null,
+      url: targetUrl,
+      goal: testCommand,
+      browserProfile: "stealth",
+    });
 
-    // Post error comment on PR
-    await postGitHubComment(
-      octokit,
-      proj,
-      pr.number,
-      `## 🔍 TinyDetective — Visual Test Failed\n\n⚠️ Could not start browser automation test.\n\n**Error:** ${errText}`
-    );
-    return;
-  }
-
-  const runData = await tinyfishResponse.json();
-  const runId = runData.run_id;
-
-  console.log(`[TinyDetective] TinyFish run started: ${runId}`);
-
-  // ── Step 5: Poll for completion ──
-  const result = await pollTinyFishRun(runId);
-
-  if (!result) {
-    await postGitHubComment(
-      octokit,
-      proj,
-      pr.number,
-      `## 🔍 TinyDetective — Visual Test Timed Out\n\n⚠️ The browser automation test did not complete within the timeout period.`
-    );
-    return;
-  }
-
-  console.log(`[TinyDetective] TinyFish run ${result.status}: ${runId}`);
-
-  // Extract observation and screenshot
-  const observation =
-    typeof result.result === "string" ? result.result : JSON.stringify(result.result);
-  
-  let screenshotUrl: string | null = null;
-  if (result.screenshot_url) {
-    screenshotUrl = result.screenshot_url;
-  } else if (result.steps && result.steps.length > 0) {
-    // Get the last step's screenshot
-    const lastStep = result.steps[result.steps.length - 1];
-    if (lastStep.screenshot_url) {
-      screenshotUrl = lastStep.screenshot_url;
-    }
-  }
-
-  // ── Step 6: Code Review via LangChain LLM ──
-  const reviewResponse = await model.invoke([
-    new SystemMessage(
-      `You are a Senior Code Reviewer for a CI/CD pipeline. The QA Agent visually tested a staging site and observed the following. Based on the observation and the code diff, determine if the test PASSED or FAILED.
+    const reviewResponse = await model.invoke([
+      new SystemMessage(
+        `You are a Senior Code Reviewer for a CI/CD pipeline. The QA Agent visually tested a staging site and observed the following. Based on the observation and the code diff, determine if the test PASSED or FAILED.
 
 Your response MUST follow this format:
 
@@ -256,112 +247,289 @@ Your response MUST follow this format:
 
 ### Suggested Fix (if FAILED)
 [If FAILED, provide a specific markdown-formatted code block suggesting the exact fix based on the diff. If PASSED, omit this section.]`
-    ),
-    new HumanMessage(
-      `QA Agent's Observation:
-${observation || "(No observation returned)"}
+      ),
+      new HumanMessage(
+        `QA Agent's Observation:
+${tinyFishResult.observation || "(No observation returned)"}
 
 PR Diff:
 ${truncatedDiff}
 
 Test Command Given:
 ${testCommand}`
-    ),
-  ]);
+      ),
+    ]);
 
-  const reviewContent =
-    (typeof reviewResponse.content === "string" ? reviewResponse.content.trim() : "") ||
-    "Unable to generate review.";
+    const reviewContent =
+      (typeof reviewResponse.content === "string" ? reviewResponse.content.trim() : "") ||
+      "Unable to generate review.";
+    const finalStatus = deriveWebhookRunStatus(reviewContent);
 
-  // ── Step 7: Post comment back to GitHub PR ──
-  let comment = `## 🔍 TinyDetective — Autonomous Visual Test Report\n\n`;
-  comment += `**PR:** #${pr.number} — ${prData.title}\n`;
-  comment += `**Staging URL:** ${proj.staging_url}\n`;
-  comment += `**Test Command:** _${testCommand}_\n\n`;
-  comment += `---\n\n`;
-  comment += reviewContent;
+    let comment = `## 🔍 TinyQA — Autonomous Visual Test Report\n\n`;
+    comment += `**PR:** #${pr.number} — ${prData.title}\n`;
+    comment += `**Target URL:** ${targetUrl}\n`;
+    comment += `**Test Command:** _${testCommand}_\n\n`;
+    comment += `---\n\n`;
+    comment += reviewContent;
 
-  if (screenshotUrl) {
-    comment += `\n\n---\n\n### 📸 Screenshot\n\n![TinyDetective Screenshot](${screenshotUrl})`;
+    if (tinyFishResult.screenshotUrl) {
+      comment += `\n\n---\n\n### 📸 Screenshot\n\n![TinyQA Screenshot](${tinyFishResult.screenshotUrl})`;
+    }
+
+    comment += `\n\n---\n_Powered by TinyQA — Autonomous AI Visual Testing_`;
+
+    const reviewCommentUrl = await postGitHubComment(octokit, proj, pr.number, comment);
+
+    if (runRecord) {
+      await updateRun(runRecord.id, {
+        status: finalStatus,
+        result_text: reviewContent,
+        screenshot_url: tinyFishResult.screenshotUrl,
+        review_comment_url: reviewCommentUrl,
+        completed_at: new Date().toISOString(),
+      });
+    }
+
+    console.log(`[TinyQA] Review posted to PR #${pr.number}`);
+  } catch (error) {
+    if (runRecord) {
+      const failureReason =
+        error instanceof Error ? error.message : "Webhook pipeline error.";
+      const isTimeout = failureReason.toLowerCase().includes("timed out");
+      await updateRun(runRecord.id, {
+        status: isTimeout ? "timed_out" : "error",
+        failure_reason: failureReason,
+        completed_at: new Date().toISOString(),
+      });
+    }
+    throw error;
+  }
+}
+
+async function runTinyFishSse({
+  runId,
+  url,
+  goal,
+  browserProfile,
+}: {
+  runId: string | null;
+  url: string;
+  goal: string;
+  browserProfile: "lite" | "stealth";
+}): Promise<{ observation: string; screenshotUrl: string | null }> {
+  const response = await fetch(TINYFISH_STREAM_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-API-Key": process.env.TINYFISH_API_KEY!,
+    },
+    body: JSON.stringify({
+      url,
+      goal,
+      browser_profile: browserProfile,
+    }),
+    cache: "no-store",
+  });
+
+  if (!response.ok || !response.body) {
+    const errText = await response.text();
+    throw new Error(
+      errText || "TinyFish SSE failed before a live preview could start."
+    );
   }
 
-  comment += `\n\n---\n_Powered by TinyDetective — Autonomous AI Visual Testing_`;
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let observation = "";
+  let screenshotUrl: string | null = null;
+  let completed = false;
+  const timeoutAt = Date.now() + 6 * 60 * 1000;
 
-  await postGitHubComment(octokit, proj, pr.number, comment);
+  while (Date.now() < timeoutAt) {
+    const { value, done } = await reader.read();
 
-  console.log(`[TinyDetective] Review posted to PR #${pr.number}`);
-}
+    if (done) {
+      break;
+    }
 
-// ─── Helper: Poll TinyFish Run ────────────────────────────────────────────────
+    buffer += decoder.decode(value, { stream: true });
+    const chunks = buffer.split("\n\n");
+    buffer = chunks.pop() ?? "";
 
-async function pollTinyFishRun(
-  runId: string,
-  maxAttempts = 60,
-  intervalMs = 5000
-): Promise<TinyFishRunStatus | null> {
-  return new Promise((resolve) => {
-    let attempts = 0;
+    for (const chunk of chunks) {
+      const dataLine = chunk
+        .split("\n")
+        .find((line) => line.trim().startsWith("data:"));
 
-    const poll = setInterval(async () => {
-      attempts++;
-
-      try {
-        const res = await fetch(
-          `https://agent.tinyfish.ai/v1/runs/${runId}`,
-          {
-            headers: { "X-API-Key": process.env.TINYFISH_API_KEY! },
-          }
-        );
-
-        if (!res.ok) {
-          console.error(`[TinyDetective] Poll failed (attempt ${attempts}):`, res.status);
-          if (attempts >= maxAttempts) {
-            clearInterval(poll);
-            resolve(null);
-          }
-          return;
-        }
-
-        const data: TinyFishRunStatus = await res.json();
-
-        if (data.status === "COMPLETED" || data.status === "FAILED") {
-          clearInterval(poll);
-          resolve(data);
-        } else if (attempts >= maxAttempts) {
-          clearInterval(poll);
-          resolve(null);
-        } else {
-          console.log(
-            `[TinyDetective] Polling run ${runId} — status: ${data.status} (attempt ${attempts}/${maxAttempts})`
-          );
-        }
-      } catch (err) {
-        console.error(`[TinyDetective] Poll error (attempt ${attempts}):`, err);
-        if (attempts >= maxAttempts) {
-          clearInterval(poll);
-          resolve(null);
-        }
+      if (!dataLine) {
+        continue;
       }
-    }, intervalMs);
-  });
-}
 
-// ─── Helper: Post GitHub Comment ──────────────────────────────────────────────
+      const rawPayload = dataLine.replace(/^data:\s*/, "").trim();
+      if (!rawPayload) {
+        continue;
+      }
+
+      let event: TinyFishSseEvent;
+      try {
+        event = JSON.parse(rawPayload) as TinyFishSseEvent;
+      } catch {
+        continue;
+      }
+
+      if (runId) {
+        await persistTinyFishLifecycleEvent(runId, event);
+      }
+
+      if (typeof event.result === "string") {
+        observation = event.result;
+      } else if (event.result) {
+        observation = JSON.stringify(event.result);
+      }
+
+      if (typeof (event as { screenshot_url?: unknown }).screenshot_url === "string") {
+        screenshotUrl = (event as { screenshot_url?: string }).screenshot_url ?? null;
+      }
+
+      if (event.type === "COMPLETE") {
+        completed = true;
+        break;
+      }
+
+      if (event.type === "ERROR") {
+        throw new Error(event.error ?? "TinyFish reported an error.");
+      }
+    }
+
+    if (completed) {
+      break;
+    }
+  }
+
+  if (!completed) {
+    throw new Error("TinyFish SSE run timed out before completion.");
+  }
+
+  return {
+    observation: observation || "TinyFish completed the run but returned no observation.",
+    screenshotUrl,
+  };
+}
 
 async function postGitHubComment(
   octokit: Octokit,
   project: Project,
   prNumber: number,
   body: string
-): Promise<void> {
+): Promise<string | null> {
   try {
-    await octokit.issues.createComment({
+    const { data } = await octokit.issues.createComment({
       owner: project.repo_owner,
       repo: project.repo_name,
       issue_number: prNumber,
       body,
     });
+    return data.html_url ?? null;
   } catch (err) {
-    console.error("[TinyDetective] Failed to post GitHub comment:", err);
+    console.error("[TinyQA] Failed to post GitHub comment:", err);
+    return null;
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function resolveTargetUrlForPr({
+  octokit,
+  owner,
+  repo,
+  prHeadSha,
+  fallbackUrl,
+}: {
+  octokit: Octokit;
+  owner: string;
+  repo: string;
+  prHeadSha: string;
+  fallbackUrl: string;
+}): Promise<string> {
+  const timeoutMs = 2 * 60 * 1000;
+  const pollIntervalMs = 5000;
+  const startedAt = Date.now();
+
+  console.log("[TinyQA] Resolving deployment preview URL", {
+    owner,
+    repo,
+    sha: prHeadSha,
+  });
+
+  while (Date.now() - startedAt < timeoutMs) {
+    try {
+      const { data: deployments } = await octokit.repos.listDeployments({
+        owner,
+        repo,
+        sha: prHeadSha,
+        per_page: 20,
+      });
+
+      const prioritizedDeployments = deployments
+        .slice()
+        .sort((a, b) => {
+          const aPreview = (a.environment ?? "").toLowerCase().includes("preview");
+          const bPreview = (b.environment ?? "").toLowerCase().includes("preview");
+          return Number(bPreview) - Number(aPreview);
+        });
+
+      for (const deployment of prioritizedDeployments) {
+        const { data: statuses } = await octokit.repos.listDeploymentStatuses({
+          owner,
+          repo,
+          deployment_id: deployment.id,
+          per_page: 20,
+        });
+
+        const successStatus = statuses.find((status) => status.state === "success");
+        if (!successStatus) {
+          continue;
+        }
+
+        const previewUrl =
+          successStatus.environment_url ??
+          successStatus.target_url ??
+          null;
+
+        if (!previewUrl || !isLikelyWebPreviewUrl(previewUrl)) {
+          continue;
+        }
+
+        console.log("[TinyQA] Using deployed preview URL", {
+          deploymentId: deployment.id,
+          previewUrl,
+        });
+        return previewUrl;
+      }
+    } catch (error) {
+      console.warn("[TinyQA] Failed to resolve deployment status, retrying", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    await sleep(pollIntervalMs);
+  }
+
+  console.warn("[TinyQA] Deployment preview URL not ready; falling back", {
+    fallbackUrl,
+  });
+  return fallbackUrl;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isLikelyWebPreviewUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" && parsed.hostname !== "api.github.com";
+  } catch {
+    return false;
   }
 }

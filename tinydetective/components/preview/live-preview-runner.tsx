@@ -35,6 +35,7 @@ interface TinyFishStreamEvent {
 }
 
 interface PreviewTemplate {
+  projectId?: string;
   eyebrow: string;
   title: string;
   description: string;
@@ -245,6 +246,7 @@ export function LivePreviewRunner({ template }: LivePreviewRunnerProps) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
+        project_id: template.projectId,
         url: targetUrl,
         goal,
         browser_profile: browserProfile,
@@ -460,7 +462,7 @@ export function LivePreviewRunner({ template }: LivePreviewRunnerProps) {
               <div className="flex flex-wrap gap-3">
                 <Button
                   onClick={handleStart}
-                  disabled={isRunning}
+                  disabled={isRunning || !template.projectId}
                   className="bg-white/10 border border-white/20 text-white hover:bg-white/20"
                 >
                   {isRunning ? (
@@ -468,7 +470,11 @@ export function LivePreviewRunner({ template }: LivePreviewRunnerProps) {
                   ) : (
                     <Play className="size-4" />
                   )}
-                  {isRunning ? "Starting…" : "Start Live Preview"}
+                  {isRunning
+                    ? "Starting…"
+                    : template.projectId
+                      ? "Start Live Preview"
+                      : "Select Project First"}
                 </Button>
                 <Button
                   onClick={handleStop}
@@ -515,7 +521,9 @@ export function LivePreviewRunner({ template }: LivePreviewRunnerProps) {
                       <p className="text-sm leading-7 text-white/60">
                         {isRunning
                           ? "TinyFish has started the automation. The iframe will switch on as soon as the STREAMING_URL event arrives."
-                          : "Start a live TinyFish run to watch the browser session here in real time."}
+                          : template.projectId
+                            ? "Start a live TinyFish run to watch the browser session here in real time."
+                            : "Open this preview from a project card so the run can be persisted and linked to the correct repo."}
                       </p>
                     </div>
                   </div>
