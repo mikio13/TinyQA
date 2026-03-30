@@ -1,4 +1,5 @@
 {
+  "name": "tinyqa",
   "private": true,
   "scripts": {
     "dev": "next dev",

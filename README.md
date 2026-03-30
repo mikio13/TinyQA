@@ -98,7 +98,7 @@ What still depends on environment setup:
 
 ```bash
 git clone <your-repo-url>
-cd TinyDetective/tinydetective
+cd TinyQA/tinyqa
 ```
 
 ### 2. Install dependencies
