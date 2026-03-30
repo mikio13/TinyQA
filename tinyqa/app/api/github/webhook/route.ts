@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin-client";
 import {
+  createInstallationAccessToken,
   verifyGitHubWebhookSignature,
 } from "@/lib/github-app";
 import {
   isAcceptedPullRequestEvent,
+  runWebhookPipeline,
 } from "@/lib/github-webhook-pipeline";
-import { enqueueWebhookJob } from "@/lib/webhook-jobs";
 import type { Project, WebhookPayload } from "@/lib/types";
+
+export const runtime = "nodejs";
+export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
   const event = request.headers.get("x-github-event");
@@ -118,36 +122,53 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const enqueueResult = await enqueueWebhookJob({
-    projectId: project.id,
-    mode: "github_app",
-    githubEvent: event,
-    githubDeliveryId: delivery,
-    payload,
-  });
-
-  console.log("[TinyQA App Webhook] Job enqueue result", {
-    delivery,
-    duplicate: enqueueResult.duplicate,
-    jobId: enqueueResult.jobId,
-    projectId: project.id,
-  });
-
-  if (enqueueResult.duplicate) {
-    return NextResponse.json({
-      received: true,
-      duplicate: true,
-      mode: "github_app",
-      project_id: project.id,
-      repository_id: repositoryId,
-      installation_id: installationId,
+  let installationToken: string;
+  try {
+    installationToken = await createInstallationAccessToken(installationId);
+  } catch (error) {
+    console.error("[TinyQA App Webhook] Failed to create installation token", {
+      delivery,
+      installationId,
+      projectId: project.id,
+      error: error instanceof Error ? error.message : String(error),
     });
+    return NextResponse.json(
+      { error: "Failed to create GitHub App installation token" },
+      { status: 500 },
+    );
   }
+
+  console.log("[TinyQA App Webhook] Triggering direct pipeline", {
+    delivery,
+    projectId: project.id,
+    installationId,
+    repositoryId,
+    repo: `${project.repo_owner}/${project.repo_name}`,
+  });
+
+  const pipelinePromise = runWebhookPipeline({
+    project,
+    payload,
+    metadata: {
+      delivery,
+      event,
+    },
+    githubToken: installationToken,
+  });
+
+  pipelinePromise.catch((error) => {
+    console.error("[TinyQA App Webhook] Pipeline failed", {
+      delivery,
+      projectId: project.id,
+      installationId,
+      repositoryId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  });
 
   return NextResponse.json({
     received: true,
-    queued: true,
-    job_id: enqueueResult.jobId,
+    processing: true,
     mode: "github_app",
     project_id: project.id,
     repository_id: repositoryId,

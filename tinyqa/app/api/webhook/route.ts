@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin-client";
 import {
   isAcceptedPullRequestEvent,
+  runWebhookPipeline,
 } from "@/lib/github-webhook-pipeline";
-import { enqueueWebhookJob } from "@/lib/webhook-jobs";
 import type { Project, WebhookPayload } from "@/lib/types";
+
+export const runtime = "nodejs";
+export const maxDuration = 300;
 
 /**
  * Legacy route (dual-mode migration):
@@ -62,34 +65,33 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const enqueueResult = await enqueueWebhookJob({
-    projectId: proj.id,
-    mode: "legacy_project_pat",
-    githubEvent: event,
-    githubDeliveryId: delivery,
-    payload,
-  });
-
-  console.log("[TinyQA Legacy Webhook] Job enqueue result", {
+  console.log("[TinyQA Legacy Webhook] Triggering direct pipeline", {
     delivery,
-    duplicate: enqueueResult.duplicate,
-    jobId: enqueueResult.jobId,
     projectId: proj.id,
+    repo: `${proj.repo_owner}/${proj.repo_name}`,
   });
 
-  if (enqueueResult.duplicate) {
-    return NextResponse.json({
-      received: true,
-      duplicate: true,
-      mode: "legacy_project_pat",
-      project_id: projectId,
+  const pipelinePromise = runWebhookPipeline({
+    project: proj,
+    payload,
+    metadata: {
+      delivery,
+      event,
+    },
+    githubToken: proj.github_pat,
+  });
+
+  pipelinePromise.catch((error) => {
+    console.error("[TinyQA Legacy Webhook] Pipeline failed", {
+      delivery,
+      projectId: proj.id,
+      error: error instanceof Error ? error.message : String(error),
     });
-  }
+  });
 
   return NextResponse.json({
     received: true,
-    queued: true,
-    job_id: enqueueResult.jobId,
+    processing: true,
     mode: "legacy_project_pat",
     project_id: projectId,
   });
