@@ -1,14 +1,25 @@
 import { AuthButton } from "@/components/auth-button";
 import { DashboardNav } from "@/components/dashboard-nav";
+import { createClient } from "@/lib/supabase/server";
 import { hasEnvVars } from "@/lib/utils";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  if (hasEnvVars) {
+    const supabase = await createClient();
+    const { data, error } = await supabase.auth.getClaims();
+
+    if (error || !data?.claims) {
+      redirect("/auth/login");
+    }
+  }
+
   return (
     <main className="min-h-screen flex flex-col items-center" style={{ backgroundColor: "#1E2638" }}>
       <div className="flex-1 w-full flex flex-col items-center">

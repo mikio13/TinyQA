@@ -7,12 +7,7 @@ export async function updateSession(request: NextRequest) {
     request,
   });
 
-  // Public webhook endpoint must stay reachable by GitHub without auth.
-  if (request.nextUrl.pathname.startsWith("/api/webhook")) {
-    return supabaseResponse;
-  }
-
-  // If the env vars are not set, skip proxy check. You can remove this
+  // If the env vars are not set, skip middleware checks. You can remove this
   // once you setup the project.
   if (!hasEnvVars) {
     return supabaseResponse;
@@ -52,13 +47,12 @@ export async function updateSession(request: NextRequest) {
   const { data } = await supabase.auth.getClaims();
   const user = data?.claims;
 
-  if (
-    request.nextUrl.pathname !== "/" &&
-    !user &&
-    !request.nextUrl.pathname.startsWith("/login") &&
-    !request.nextUrl.pathname.startsWith("/auth")
-  ) {
-    // no user, potentially respond by redirecting the user to the login page
+  if (!user) {
+    if (request.nextUrl.pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // no user, redirect to login for protected dashboard paths
     const url = request.nextUrl.clone();
     url.pathname = "/auth/login";
     return NextResponse.redirect(url);

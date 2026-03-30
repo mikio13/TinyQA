@@ -4,7 +4,6 @@ import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { AnalyticsPanel } from "@/components/dashboard/analytics-panel";
 import { DashboardProjectsPanel } from "@/components/dashboard/projects-panel";
 import { DashboardSheet } from "@/components/dashboard/dashboard-sheet";
 
@@ -524,19 +523,6 @@ export default function Home() {
           eyebrow="Office Popup"
         >
           <DashboardProjectsPanel />
-        </DashboardSheet>
-      ) : null}
-
-      {isLoggedIn && activeSheet === "analytics" ? (
-        <DashboardSheet
-          onClose={() => setActiveSheet(null)}
-          fullPageHref="/dashboard/analytics"
-          fullPageLabel="Open Full Analytics"
-          title="Analytics Workspace"
-          eyebrow="Metrics Popup"
-          maxWidthClassName="max-w-[72rem]"
-        >
-          <AnalyticsPanel />
         </DashboardSheet>
       ) : null}
 
