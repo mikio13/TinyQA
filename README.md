@@ -80,6 +80,12 @@ What still depends on environment setup:
 - `/preview/infra`  
   Public infra preview route for demo and testing
 
+## Access policy
+
+- `/dashboard/*` routes are authenticated-only and redirect unauthenticated users to `/auth/login`
+- `/api/webhook` is intentionally public so GitHub webhooks can reach TinyQA without user auth
+- Other authenticated API routes enforce user checks server-side and return `401` when unauthenticated
+
 ## Features
 
 - Pixel-art product presentation for hackathon demo clarity
