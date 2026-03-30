@@ -11,9 +11,17 @@ create table if not exists projects (
   repo_owner text not null,
   repo_name text not null,
   staging_url text not null,
-  github_pat text not null,
+  github_pat text,
+  github_installation_id bigint,
+  github_repository_id bigint,
+  github_repository_node_id text,
   created_at timestamptz default now()
 );
+
+alter table projects add column if not exists github_installation_id bigint;
+alter table projects add column if not exists github_repository_id bigint;
+alter table projects add column if not exists github_repository_node_id text;
+alter table projects alter column github_pat drop not null;
 
 create table if not exists runs (
   id uuid primary key default uuid_generate_v4(),
@@ -64,6 +72,12 @@ create policy "Users can delete own runs"
 
 -- Indexes
 create index if not exists idx_projects_user_id on projects(user_id);
+create unique index if not exists idx_projects_installation_repo
+  on projects(github_installation_id, github_repository_id)
+  where github_installation_id is not null and github_repository_id is not null;
 create index if not exists idx_runs_user_id on runs(user_id);
 create index if not exists idx_runs_project_id on runs(project_id);
 create index if not exists idx_runs_created_at on runs(created_at desc);
+create unique index if not exists idx_runs_project_delivery
+  on runs(project_id, github_delivery_id)
+  where github_delivery_id is not null;

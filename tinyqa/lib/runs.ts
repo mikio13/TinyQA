@@ -128,6 +128,26 @@ export async function createRun(input: CreateRunInput): Promise<RunRecord> {
   return mapRunRow(data as RunRow);
 }
 
+export async function findRunByDeliveryId(
+  projectId: string,
+  deliveryId: string,
+): Promise<RunRecord | null> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("runs")
+    .select("*")
+    .eq("project_id", projectId)
+    .eq("github_delivery_id", deliveryId)
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return mapRunRow(data as RunRow);
+}
+
 export async function updateRun(
   runId: string,
   updates: UpdateRunInput

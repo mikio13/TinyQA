@@ -4,7 +4,10 @@ export interface Project {
   repo_owner: string;
   repo_name: string;
   staging_url: string;
-  github_pat: string;
+  github_pat: string | null;
+  github_installation_id: number | null;
+  github_repository_id: number | null;
+  github_repository_node_id: string | null;
   created_at: string;
 }
 
@@ -64,6 +67,9 @@ export interface InsightsResponse {
 export interface WebhookPayload {
   action: string;
   number: number;
+  installation?: {
+    id: number;
+  };
   pull_request: {
     title: string;
     body: string | null;
@@ -75,6 +81,8 @@ export interface WebhookPayload {
     user: { login: string };
   };
   repository: {
+    id?: number;
+    node_id?: string;
     owner: { login: string };
     name: string;
     full_name: string;
