@@ -30,7 +30,9 @@ export async function runWebhookPipeline({
   githubToken: string;
 }): Promise<void> {
   const pr = payload.pull_request;
+  const traceId = metadata.delivery ?? `local-${Date.now()}`;
   console.log("[TinyQA Pipeline] Starting pipeline", {
+    traceId,
     projectId: project.id,
     repo: `${project.repo_owner}/${project.repo_name}`,
     prNumber: pr.number,
@@ -42,6 +44,7 @@ export async function runWebhookPipeline({
     const existing = await findRunByDeliveryId(project.id, metadata.delivery);
     if (existing) {
       console.log("[TinyQA] Skipping duplicate delivery", {
+        traceId,
         delivery: metadata.delivery,
         runId: existing.id,
       });
@@ -70,24 +73,72 @@ export async function runWebhookPipeline({
   }
 
   try {
+    console.log("[TinyQA Pipeline] Initializing GitHub client", {
+      traceId,
+      hasToken: Boolean(githubToken),
+      runId: runRecord?.id ?? null,
+    });
     const octokit = new Octokit({ auth: githubToken });
     const targetUrl = project.staging_url;
 
+    console.log("[TinyQA Pipeline] Fetching PR details from GitHub", {
+      traceId,
+      repo: `${project.repo_owner}/${project.repo_name}`,
+      prNumber: pr.number,
+    });
     const { data: prData } = await octokit.pulls.get({
       owner: project.repo_owner,
       repo: project.repo_name,
       pull_number: pr.number,
     });
 
-    const diffResponse = await fetch(prData.diff_url, {
+    const apiDiffUrl = `https://api.github.com/repos/${project.repo_owner}/${project.repo_name}/pulls/${pr.number}`;
+    console.log("[TinyQA Pipeline] Fetching PR diff (API endpoint)", {
+      traceId,
+      apiDiffUrl,
+    });
+
+    const apiDiffResponse = await fetch(apiDiffUrl, {
       headers: {
         Authorization: `Bearer ${githubToken}`,
         Accept: "application/vnd.github.v3.diff",
+        "X-GitHub-Api-Version": "2022-11-28",
       },
       cache: "no-store",
     });
-    const diff = await diffResponse.text();
+    console.log("[TinyQA Pipeline] API diff fetch response", {
+      traceId,
+      ok: apiDiffResponse.ok,
+      status: apiDiffResponse.status,
+      statusText: apiDiffResponse.statusText,
+    });
+
+    let diff = "";
+    if (apiDiffResponse.ok) {
+      diff = await apiDiffResponse.text();
+    } else {
+      console.warn("[TinyQA Pipeline] API diff failed, falling back to prData.diff_url", {
+        traceId,
+        fallbackUrl: prData.diff_url,
+      });
+      const fallbackDiffResponse = await fetch(prData.diff_url, {
+        headers: {
+          Authorization: `Bearer ${githubToken}`,
+          Accept: "application/vnd.github.v3.diff",
+        },
+        cache: "no-store",
+      });
+      console.log("[TinyQA Pipeline] Fallback diff fetch response", {
+        traceId,
+        ok: fallbackDiffResponse.ok,
+        status: fallbackDiffResponse.status,
+        statusText: fallbackDiffResponse.statusText,
+      });
+      diff = await fallbackDiffResponse.text();
+    }
+
     console.log("[TinyQA Pipeline] PR diff fetched", {
+      traceId,
       prNumber: pr.number,
       diffLength: diff.length,
     });
@@ -97,6 +148,10 @@ export async function runWebhookPipeline({
         ? `${diff.slice(0, maxDiffLength)}\n... [diff truncated]`
         : diff;
 
+    console.log("[TinyQA Pipeline] Requesting QA command from OpenAI", {
+      traceId,
+      model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+    });
     const qaResponse = await model.invoke([
       new SystemMessage(
         `You are a QA Engineer. Translate this PR description and code diff into a single, strict, 1-2 sentence command for a browser automation bot to test this feature on a staging UI.\n\nThe command should be specific and actionable — tell the bot exactly what to navigate to, what to click, what to type, and what to verify.\nFocus on the most impactful visual/functional change in the PR.\nReturn ONLY the command text, nothing else.`,
@@ -109,21 +164,43 @@ export async function runWebhookPipeline({
     const testCommand =
       (typeof qaResponse.content === "string" ? qaResponse.content.trim() : "") ||
       "Navigate to the target preview URL and check if the page loads correctly.";
+    console.log("[TinyQA Pipeline] QA command generated", {
+      traceId,
+      commandLength: testCommand.length,
+    });
 
     if (runRecord) {
       runRecord = await updateRun(runRecord.id, {
         goal: testCommand,
         browser_profile: "stealth",
       });
+      console.log("[TinyQA Pipeline] Run updated with goal", {
+        traceId,
+        runId: runRecord.id,
+      });
     }
 
+    console.log("[TinyQA Pipeline] Starting TinyFish SSE run", {
+      traceId,
+      runId: runRecord?.id ?? null,
+      targetUrl,
+    });
     const tinyFishResult = await runTinyFishSse({
       runId: runRecord?.id ?? null,
       url: targetUrl,
       goal: testCommand,
       browserProfile: "stealth",
     });
+    console.log("[TinyQA Pipeline] TinyFish SSE completed", {
+      traceId,
+      hasObservation: Boolean(tinyFishResult.observation),
+      hasScreenshot: Boolean(tinyFishResult.screenshotUrl),
+    });
 
+    console.log("[TinyQA Pipeline] Requesting final review from OpenAI", {
+      traceId,
+      model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+    });
     const reviewResponse = await model.invoke([
       new SystemMessage(
         `You are a Senior Code Reviewer for a CI/CD pipeline. The QA Agent visually tested a staging site and observed the following. Based on the observation and the code diff, determine if the test PASSED or FAILED.\n\nYour response MUST follow this format:\n\n## Result: PASSED ✅  (or)  ## Result: FAILED ❌\n\n### Observation\n[Summarize what the QA agent saw on the staging site]\n\n### Analysis\n[Explain whether the visual test matches the expected behavior from the code changes]\n\n### Suggested Fix (if FAILED)\n[If FAILED, provide a specific markdown-formatted code block suggesting the exact fix based on the diff. If PASSED, omit this section.]`,
@@ -137,6 +214,11 @@ export async function runWebhookPipeline({
       (typeof reviewResponse.content === "string" ? reviewResponse.content.trim() : "") ||
       "Unable to generate review.";
     const finalStatus = deriveWebhookRunStatus(reviewContent);
+    console.log("[TinyQA Pipeline] Review generated", {
+      traceId,
+      status: finalStatus,
+      reviewLength: reviewContent.length,
+    });
 
     let comment = `## 🔍 TinyQA — Autonomous Visual Test Report\n\n`;
     comment += `**PR:** #${pr.number} — ${prData.title}\n`;
@@ -157,6 +239,10 @@ export async function runWebhookPipeline({
       pr.number,
       comment,
     );
+    console.log("[TinyQA Pipeline] GitHub comment result", {
+      traceId,
+      hasCommentUrl: Boolean(reviewCommentUrl),
+    });
 
     if (runRecord) {
       await updateRun(runRecord.id, {
@@ -168,11 +254,18 @@ export async function runWebhookPipeline({
       });
     }
     console.log("[TinyQA Pipeline] Pipeline completed", {
+      traceId,
       runId: runRecord?.id ?? null,
       prNumber: pr.number,
       status: finalStatus,
     });
   } catch (error) {
+    console.error("[TinyQA Pipeline] Pipeline error", {
+      traceId,
+      runId: runRecord?.id ?? null,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : null,
+    });
     if (runRecord) {
       const failureReason =
         error instanceof Error ? error.message : "Webhook pipeline error.";
@@ -220,6 +313,13 @@ async function runTinyFishSse({
   goal: string;
   browserProfile: "lite" | "stealth";
 }): Promise<{ observation: string; screenshotUrl: string | null }> {
+  console.log("[TinyQA TinyFish] Sending SSE request", {
+    runId,
+    url,
+    browserProfile,
+    goalLength: goal.length,
+    hasApiKey: Boolean(process.env.TINYFISH_API_KEY),
+  });
   const response = await fetch(TINYFISH_STREAM_URL, {
     method: "POST",
     headers: {
@@ -233,9 +333,21 @@ async function runTinyFishSse({
     }),
     cache: "no-store",
   });
+  console.log("[TinyQA TinyFish] SSE initial response", {
+    runId,
+    ok: response.ok,
+    status: response.status,
+    statusText: response.statusText,
+  });
 
   if (!response.ok || !response.body) {
     const errText = await response.text();
+    console.error("[TinyQA TinyFish] SSE request failed", {
+      runId,
+      status: response.status,
+      statusText: response.statusText,
+      errorBody: errText,
+    });
     throw new Error(
       errText || "TinyFish SSE failed before a live preview could start.",
     );
@@ -278,8 +390,19 @@ async function runTinyFishSse({
       try {
         event = JSON.parse(rawPayload) as TinyFishSseEvent;
       } catch {
+        console.warn("[TinyQA TinyFish] Failed to parse SSE event payload", {
+          runId,
+          preview: rawPayload.slice(0, 200),
+        });
         continue;
       }
+
+      console.log("[TinyQA TinyFish] SSE event received", {
+        runId,
+        type: event.type ?? "unknown",
+        hasResult: event.result !== undefined,
+        hasError: Boolean(event.error),
+      });
 
       if (runId) {
         await persistTinyFishLifecycleEvent(runId, event);
@@ -314,6 +437,9 @@ async function runTinyFishSse({
   }
 
   if (!completed) {
+    console.error("[TinyQA TinyFish] SSE timed out before COMPLETE event", {
+      runId,
+    });
     throw new Error("TinyFish SSE run timed out before completion.");
   }
 

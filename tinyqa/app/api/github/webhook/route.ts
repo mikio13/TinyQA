@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin-client";
 import {
   createInstallationAccessToken,
@@ -146,24 +146,33 @@ export async function POST(request: NextRequest) {
     repo: `${project.repo_owner}/${project.repo_name}`,
   });
 
-  const pipelinePromise = runWebhookPipeline({
-    project,
-    payload,
-    metadata: {
-      delivery,
-      event,
-    },
-    githubToken: installationToken,
+  after(async () => {
+    try {
+      await runWebhookPipeline({
+        project,
+        payload,
+        metadata: {
+          delivery,
+          event,
+        },
+        githubToken: installationToken,
+      });
+    } catch (error) {
+      console.error("[TinyQA App Webhook] Pipeline failed", {
+        delivery,
+        projectId: project.id,
+        installationId,
+        repositoryId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   });
 
-  pipelinePromise.catch((error) => {
-    console.error("[TinyQA App Webhook] Pipeline failed", {
-      delivery,
-      projectId: project.id,
-      installationId,
-      repositoryId,
-      error: error instanceof Error ? error.message : String(error),
-    });
+  console.log("[TinyQA App Webhook] Pipeline scheduled via after()", {
+    delivery,
+    projectId: project.id,
+    installationId,
+    repositoryId,
   });
 
   return NextResponse.json({
