@@ -92,7 +92,6 @@ What still depends on environment setup:
 - Legacy mode (temporary): repo webhook -> `/api/webhook?project_id=<project-id>` using per-project PAT
 - New mode (preferred): GitHub App global webhook -> `/api/github/webhook` using installation tokens
 - During migration, both endpoints are supported in parallel
-- Ingestion is queue-backed: webhooks enqueue quickly, `/api/internal/process-webhook-jobs` worker processes asynchronously
 - Callback URL is not needed when using app-only auth (no user OAuth)
 
 ## Features
@@ -136,7 +135,6 @@ TINYFISH_API_KEY=your_tinyfish_key
 GITHUB_APP_ID=your_github_app_id
 GITHUB_APP_PRIVATE_KEY=your_github_app_private_key_pem
 GITHUB_APP_WEBHOOK_SECRET=your_github_app_webhook_secret
-WEBHOOK_WORKER_SECRET=shared_secret_for_worker_endpoint
 ```
 
 Notes:
@@ -144,7 +142,6 @@ Notes:
 - `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` are required for authenticated dashboard functionality
 - `TINYFISH_API_KEY` is required for actual live TinyFish browser preview streaming
 - without the TinyFish key, the preview pages will load but the live stream cannot start
-- Set Vercel cron to call `/api/internal/process-webhook-jobs` and include `Authorization: Bearer <WEBHOOK_WORKER_SECRET>` (or configure `CRON_SECRET`)
 
 ### 4. Run the development server
 
