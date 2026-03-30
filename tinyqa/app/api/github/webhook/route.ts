@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin-client";
 import {
-  createInstallationAccessToken,
   verifyGitHubWebhookSignature,
 } from "@/lib/github-app";
 import {
   isAcceptedPullRequestEvent,
-  runWebhookPipeline,
 } from "@/lib/github-webhook-pipeline";
+import { enqueueWebhookJob } from "@/lib/webhook-jobs";
 import type { Project, WebhookPayload } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
@@ -15,6 +14,12 @@ export async function POST(request: NextRequest) {
   const delivery = request.headers.get("x-github-delivery");
   const signature = request.headers.get("x-hub-signature-256");
   const webhookSecret = process.env.GITHUB_APP_WEBHOOK_SECRET;
+
+  console.log("[TinyQA App Webhook] Incoming delivery", {
+    event,
+    delivery,
+    hasSignature: Boolean(signature),
+  });
 
   if (!webhookSecret) {
     return NextResponse.json(
@@ -113,30 +118,36 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let installationToken: string;
-  try {
-    installationToken = await createInstallationAccessToken(installationId);
-  } catch (error) {
-    console.error("[TinyQA App Webhook] Failed to create installation token", error);
-    return NextResponse.json(
-      { error: "Unable to create installation token" },
-      { status: 500 },
-    );
-  }
-
-  const responsePromise = runWebhookPipeline({
-    project,
+  const enqueueResult = await enqueueWebhookJob({
+    projectId: project.id,
+    mode: "github_app",
+    githubEvent: event,
+    githubDeliveryId: delivery,
     payload,
-    metadata: { delivery, event },
-    githubToken: installationToken,
   });
 
-  responsePromise.catch((error) => {
-    console.error("[TinyQA App Webhook] Pipeline error:", error);
+  console.log("[TinyQA App Webhook] Job enqueue result", {
+    delivery,
+    duplicate: enqueueResult.duplicate,
+    jobId: enqueueResult.jobId,
+    projectId: project.id,
   });
+
+  if (enqueueResult.duplicate) {
+    return NextResponse.json({
+      received: true,
+      duplicate: true,
+      mode: "github_app",
+      project_id: project.id,
+      repository_id: repositoryId,
+      installation_id: installationId,
+    });
+  }
 
   return NextResponse.json({
     received: true,
+    queued: true,
+    job_id: enqueueResult.jobId,
     mode: "github_app",
     project_id: project.id,
     repository_id: repositoryId,

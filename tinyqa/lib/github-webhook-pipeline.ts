@@ -30,6 +30,13 @@ export async function runWebhookPipeline({
   githubToken: string;
 }): Promise<void> {
   const pr = payload.pull_request;
+  console.log("[TinyQA Pipeline] Starting pipeline", {
+    projectId: project.id,
+    repo: `${project.repo_owner}/${project.repo_name}`,
+    prNumber: pr.number,
+    delivery: metadata.delivery,
+    event: metadata.event,
+  });
 
   if (metadata.delivery) {
     const existing = await findRunByDeliveryId(project.id, metadata.delivery);
@@ -80,6 +87,10 @@ export async function runWebhookPipeline({
       cache: "no-store",
     });
     const diff = await diffResponse.text();
+    console.log("[TinyQA Pipeline] PR diff fetched", {
+      prNumber: pr.number,
+      diffLength: diff.length,
+    });
     const maxDiffLength = 8000;
     const truncatedDiff =
       diff.length > maxDiffLength
@@ -156,6 +167,11 @@ export async function runWebhookPipeline({
         completed_at: new Date().toISOString(),
       });
     }
+    console.log("[TinyQA Pipeline] Pipeline completed", {
+      runId: runRecord?.id ?? null,
+      prNumber: pr.number,
+      status: finalStatus,
+    });
   } catch (error) {
     if (runRecord) {
       const failureReason =
