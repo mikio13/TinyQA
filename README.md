@@ -84,7 +84,15 @@ What still depends on environment setup:
 
 - `/dashboard/*` routes are authenticated-only and redirect unauthenticated users to `/auth/login`
 - `/api/webhook` is intentionally public so GitHub webhooks can reach TinyQA without user auth
+- `/api/github/webhook` is the GitHub App global webhook endpoint (signature-verified)
 - Other authenticated API routes enforce user checks server-side and return `401` when unauthenticated
+
+## GitHub App dual-mode migration
+
+- Legacy mode (temporary): repo webhook -> `/api/webhook?project_id=<project-id>` using per-project PAT
+- New mode (preferred): GitHub App global webhook -> `/api/github/webhook` using installation tokens
+- During migration, both endpoints are supported in parallel
+- Callback URL is not needed when using app-only auth (no user OAuth)
 
 ## Features
 
@@ -124,6 +132,9 @@ NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
 OPENAI_APIKEY=your_openai_key
 TINYFISH_API_KEY=your_tinyfish_key
+GITHUB_APP_ID=your_github_app_id
+GITHUB_APP_PRIVATE_KEY=your_github_app_private_key_pem
+GITHUB_APP_WEBHOOK_SECRET=your_github_app_webhook_secret
 ```
 
 Notes:
