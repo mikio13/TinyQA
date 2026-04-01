@@ -1,202 +1,151 @@
 # TinyQA
 
-TinyQA is a Next.js hackathon project built to help teams verify whether pull request fixes are actually reflected in a live preview environment.
+TinyQA is a Next.js app for webhook-driven PR verification. It receives GitHub pull request events, gathers PR context and diffs through a GitHub App installation, generates a QA goal with OpenAI, runs a TinyFish browser session against a staging URL, and stores the resulting run records in Supabase.
 
-Instead of relying only on code diffs or reviewer intuition, TinyFish focuses on visual and behavioral verification. The product helps reviewers inspect preview environments, monitor verification progress, and confirm whether frontend or infra-backed changes are truly resolved.
+## What the app currently includes
 
-This project was created as part of a hackathon organized by TinyFish, OpenAI, and NUS Acacia College.
+- Supabase-backed TinyQA user accounts and dashboard access
+- project registration with repo owner, repo name, and staging URL
+- GitHub App webhook handling at `/api/github/webhook`
+- legacy PAT webhook support at `/api/webhook?project_id=<project-id>`
+- live preview UI at `/dashboard/live-preview`
+- run history UI at `/dashboard/runs`
+- TinyFish SSE-based execution and screenshot/result persistence
+- PR comment posting back to GitHub after a run completes
 
-## What it does
+## Current routes
 
-TinyFish is designed around a simple question:
+- `/`
+  Pixel-art landing page with dashboard entry points
+- `/dashboard`
+  Authenticated project dashboard
+- `/dashboard/live-preview`
+  Authenticated live preview screen
+- `/dashboard/runs`
+  Authenticated run history
+- `/auth/login`
+- `/auth/sign-up`
+- `/auth/forgot-password`
+- `/auth/update-password`
+- `/api/github/webhook`
+  Preferred GitHub App webhook endpoint
+- `/api/webhook`
+  Legacy repo webhook endpoint for PAT mode
+- `/api/live-preview/stream`
+  TinyFish live preview proxy route
+- `/api/runs`
+  Authenticated run listing API
+- `/api/insights`
+  Authenticated dashboard insights API
+- `/api/internal/process-webhook-jobs`
+  Internal worker trigger route
 
-**Did the fix really land in the preview?**
+## Architecture
 
-The current product direction supports:
+TinyQA has two separate auth domains:
 
-- pull request inspection
-- live browser preview for PR environments
-- live browser preview for infra-backed environments such as Supabase and AWS
-- verification checklists and status tracking
-- preview environment visibility for demo and review flows
-- project configuration through Supabase
-- webhook-based PR verification workflow
+- Supabase auth handles TinyQA users, sessions, project ownership, and run visibility
+- GitHub App auth handles webhook verification and GitHub API access for installed repositories
 
-## Current frontend experience
+The important boundary is:
 
-The frontend currently includes:
+- users log into TinyQA with Supabase
+- repositories connect to TinyQA by installing the TinyQA GitHub App
+- TinyQA reacts to webhook events server-to-server
 
-- a pixel-art landing page that acts as the main TinyFish world
-- a unified dashboard for registering repositories and preview environments
-- a Live Browser Preview for PRs screen
-- a Live Browser Preview for Supabase/AWS screen
-- consistent pixel-inspired visual styling across key screens
-- public preview routes for easier local demoing without auth friction
+TinyQA does not currently use GitHub OAuth for end-user login, and it does not store GitHub user refresh tokens.
 
-## Live preview status
+## GitHub App flow
 
-The live preview pages are structured to work with TinyFish live browser streaming through an SSE-based backend route.
+The current GitHub App flow is:
 
-What is already in place:
+1. A user signs into TinyQA and creates a project with repo owner, repo name, and staging URL.
+2. The user installs the TinyQA GitHub App on the target repository or organization.
+3. GitHub sends pull request webhook events to `/api/github/webhook`.
+4. TinyQA verifies the webhook signature with `GITHUB_APP_WEBHOOK_SECRET`.
+5. TinyQA reads `payload.installation.id` and `payload.repository.id` from the webhook payload.
+6. TinyQA resolves the matching project in Supabase.
+7. On the first matching webhook, TinyQA backfills:
+   - `github_installation_id`
+   - `github_repository_id`
+   - `github_repository_node_id`
+8. TinyQA creates a GitHub App JWT using `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY`.
+9. TinyQA exchanges that JWT for a fresh short-lived installation access token.
+10. TinyQA passes that installation token to Octokit and other GitHub API requests to fetch PR data, fetch diffs, and post comments.
+11. TinyQA runs the TinyFish/OpenAI pipeline and stores the run results in Supabase.
 
-- frontend UI for starting a live preview run
-- backend route for forwarding TinyFish live preview requests
-- iframe-based live browser preview area
-- run state, event stream, checklist, and result panels
-- separate PR and infra preview experiences
+Installation gives TinyQA permission to act on the repo, but the webhook payload does not contain a reusable installation token. TinyQA mints a fresh installation token on demand for each GitHub API session.
 
-What still depends on environment setup:
+## What TinyQA stores
 
-- actual live TinyFish streaming requires a valid `TINYFISH_API_KEY`
-- without that key, the UI still renders, but the TinyFish browser stream cannot start
+- Supabase user identity
+- project metadata
+- run history and failure reasons
+- GitHub installation and repository metadata used to link future webhook events to the correct project
 
-## Tech stack
+TinyQA does not currently store:
 
-- Next.js
-- React
-- TypeScript
-- Tailwind CSS
-- Supabase
-- TinyFish live preview integration
-- GitHub webhook workflow
+- GitHub user refresh tokens
+- long-lived GitHub installation access tokens
 
-## Main routes
+## Environment variables
 
-- `/`  
-  Pixel-art landing page
-
-- `/dashboard`  
-  Project dashboard for configuring repositories and preview URLs
-
-- `/dashboard/live-pr-preview`  
-  Authenticated PR live preview page
-
-- `/dashboard/live-infra-preview`  
-  Authenticated infra live preview page
-
-- `/preview/pr`  
-  Public PR preview route for demo and testing
-
-- `/preview/infra`  
-  Public infra preview route for demo and testing
-
-## Access policy
-
-- `/dashboard/*` routes are authenticated-only and redirect unauthenticated users to `/auth/login`
-- `/api/webhook` is intentionally public so GitHub webhooks can reach TinyQA without user auth
-- `/api/github/webhook` is the GitHub App global webhook endpoint (signature-verified)
-- Other authenticated API routes enforce user checks server-side and return `401` when unauthenticated
-
-## GitHub App dual-mode migration
-
-- Legacy mode (temporary): repo webhook -> `/api/webhook?project_id=<project-id>` using per-project PAT
-- New mode (preferred): GitHub App global webhook -> `/api/github/webhook` using installation tokens
-- During migration, both endpoints are supported in parallel
-- Callback URL is not needed when using app-only auth (no user OAuth)
-
-## Features
-
-- Pixel-art product presentation for hackathon demo clarity
-- Repository registration with staging URL and GitHub PAT
-- Webhook URL generation for PR verification flow
-- Live PR preview interface with status, run summary, and event log
-- Live infra preview interface for backend-connected environment validation
-- Checklist-driven verification UI
-- Clear run states such as pending, checking, passed, failed, and warning
-- Supabase-backed project configuration
-- TinyFish live preview SSE integration scaffold
-
-## Setup
-
-### 1. Clone the repository
-
-```bash
-git clone <your-repo-url>
-cd TinyQA/tinyqa
-```
-
-### 2. Install dependencies
-
-```bash
-npm install
-```
-
-### 3. Configure environment variables
-
-Create a local env file such as `.env.local` and add the required values.
-
-Example:
+Create `tinyqa/.env.local` and configure the values below.
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
-OPENAI_APIKEY=your_openai_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+OPENAI_API_KEY=your_openai_key
+OPENAI_MODEL=gpt-4o-mini
 TINYFISH_API_KEY=your_tinyfish_key
 GITHUB_APP_ID=your_github_app_id
 GITHUB_APP_PRIVATE_KEY=your_github_app_private_key_pem
 GITHUB_APP_WEBHOOK_SECRET=your_github_app_webhook_secret
+WEBHOOK_WORKER_SECRET=your_internal_worker_secret
 ```
 
 Notes:
 
-- `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` are required for authenticated dashboard functionality
-- `TINYFISH_API_KEY` is required for actual live TinyFish browser preview streaming
-- without the TinyFish key, the preview pages will load but the live stream cannot start
+- `SUPABASE_SERVICE_ROLE_KEY` is required for server-side webhook and run persistence
+- `OPENAI_MODEL` is optional and defaults to `gpt-4o-mini`
+- `TINYFISH_API_KEY` is required for real TinyFish execution
+- `WEBHOOK_WORKER_SECRET` is only needed if you plan to trigger `/api/internal/process-webhook-jobs`
+- GitHub App credentials belong to the TinyQA service, not to the users who install the app
 
-### 4. Run the development server
+## Local development
+
+1. Clone the repository.
+2. Install dependencies.
+3. Configure `tinyqa/.env.local`.
+4. Start the app.
 
 ```bash
+git clone <your-repo-url>
+cd TinyQA/tinyqa
+npm install
 npm run dev
 ```
 
-Then open:
+Then open `http://localhost:3000`.
 
-```text
-http://localhost:3000
-```
+For local webhook demos, exposing your local app with ngrok is a reasonable setup for `/api/github/webhook`.
 
-If you want to jump straight to the preview pages:
+## Access policy
 
-```text
-http://localhost:3000/preview/pr
-http://localhost:3000/preview/infra
-```
+- `/dashboard/*` routes require a TinyQA user session
+- `/api/github/webhook` is public because GitHub must reach it
+- `/api/webhook` is public because legacy repo webhooks must reach it
+- authenticated API routes such as `/api/runs` and `/api/insights` require a Supabase session
 
-## Notes for local development
+## Current status
 
-- The app currently runs best when the repository is stored outside OneDrive, since OneDrive can slow down Next.js file watching on Windows
-- The first page load in `next dev` may take longer because Next.js compiles routes on demand
-- Lint configuration has been adjusted to ignore generated build output
+This repo is still in active development. The main product path today is:
 
-## Project status
+- register a project in the dashboard
+- install the GitHub App on the target repo
+- receive webhook events
+- run the TinyFish/OpenAI verification pipeline
+- inspect results in the TinyQA dashboard
 
-This project is currently in active hackathon development.
-
-Completed so far:
-
-- codebase structure learned and mapped
-- two preview pages designed and implemented
-- shared reusable preview components added
-- pixel-style visual consistency extended across major screens
-- TinyFish live preview backend route added
-- frontend live preview runner added
-- public preview routes added for easier demos
-- local lint configuration stabilized
-
-Still to improve:
-
-- connect preview pages to real project data automatically
-- fully enable live TinyFish runs using valid production env keys
-- refine remaining copy and polish
-- extend consistency to any remaining starter-template screens
-
-## Demo focus
-
-This product is built to communicate:
-
-- confidence in verification
-- visibility into preview environments
-- clarity around PR resolution
-- live AI-assisted review workflows
-
-TinyFish is not meant to feel like a generic admin dashboard. It is meant to feel like an AI-assisted PR verification tool that helps teams answer whether a reported issue is actually fixed.
+Legacy PAT mode still exists in the codebase, but GitHub App mode is the preferred path.
