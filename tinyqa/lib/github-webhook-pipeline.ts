@@ -359,9 +359,8 @@ async function runTinyFishSse({
   let observation = "";
   let screenshotUrl: string | null = null;
   let completed = false;
-  const timeoutAt = Date.now() + 6 * 60 * 1000;
 
-  while (Date.now() < timeoutAt) {
+  while (true) {
     const { value, done } = await reader.read();
 
     if (done) {
@@ -437,10 +436,10 @@ async function runTinyFishSse({
   }
 
   if (!completed) {
-    console.error("[TinyQA TinyFish] SSE timed out before COMPLETE event", {
+    console.error("[TinyQA TinyFish] SSE stream ended before COMPLETE event", {
       runId,
     });
-    throw new Error("TinyFish SSE run timed out before completion.");
+    throw new Error("TinyFish SSE stream ended before completion.");
   }
 
   return {
