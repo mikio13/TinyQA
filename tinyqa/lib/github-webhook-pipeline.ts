@@ -17,6 +17,8 @@ const model = new ChatOpenAI({
 });
 
 const TINYFISH_STREAM_URL = "https://agent.tinyfish.ai/v1/automation/run-sse";
+const MAX_DIFF_LENGTH = 8000;
+const MAX_GITHUB_ERROR_LOG_LENGTH = 500;
 
 export async function runWebhookPipeline({
   project,
@@ -92,72 +94,42 @@ export async function runWebhookPipeline({
       pull_number: pr.number,
     });
 
-    const apiDiffUrl = `https://api.github.com/repos/${project.repo_owner}/${project.repo_name}/pulls/${pr.number}`;
-    console.log("[TinyQA Pipeline] Fetching PR diff (API endpoint)", {
+    const diffResult = await fetchPullRequestDiff({
+      octokit,
+      project,
+      prNumber: pr.number,
       traceId,
-      apiDiffUrl,
     });
+    const diff = diffResult.diff;
+    const truncatedDiff =
+      diff.length > MAX_DIFF_LENGTH
+        ? `${diff.slice(0, MAX_DIFF_LENGTH)}\n... [diff truncated]`
+        : diff;
 
-    const apiDiffResponse = await fetch(apiDiffUrl, {
-      headers: {
-        Authorization: `Bearer ${githubToken}`,
-        Accept: "application/vnd.github.v3.diff",
-        "X-GitHub-Api-Version": "2022-11-28",
-      },
-      cache: "no-store",
-    });
-    console.log("[TinyQA Pipeline] API diff fetch response", {
-      traceId,
-      ok: apiDiffResponse.ok,
-      status: apiDiffResponse.status,
-      statusText: apiDiffResponse.statusText,
-    });
-
-    let diff = "";
-    if (apiDiffResponse.ok) {
-      diff = await apiDiffResponse.text();
-    } else {
-      console.warn("[TinyQA Pipeline] API diff failed, falling back to prData.diff_url", {
-        traceId,
-        fallbackUrl: prData.diff_url,
-      });
-      const fallbackDiffResponse = await fetch(prData.diff_url, {
-        headers: {
-          Authorization: `Bearer ${githubToken}`,
-          Accept: "application/vnd.github.v3.diff",
-        },
-        cache: "no-store",
-      });
-      console.log("[TinyQA Pipeline] Fallback diff fetch response", {
-        traceId,
-        ok: fallbackDiffResponse.ok,
-        status: fallbackDiffResponse.status,
-        statusText: fallbackDiffResponse.statusText,
-      });
-      diff = await fallbackDiffResponse.text();
-    }
-
-    console.log("[TinyQA Pipeline] PR diff fetched", {
+    console.log("[TinyQA Pipeline] PR diff prepared", {
       traceId,
       prNumber: pr.number,
+      source: diffResult.source,
       diffLength: diff.length,
     });
-    const maxDiffLength = 8000;
-    const truncatedDiff =
-      diff.length > maxDiffLength
-        ? `${diff.slice(0, maxDiffLength)}\n... [diff truncated]`
-        : diff;
+    const diffPromptLabel =
+      diffResult.source === "raw_diff"
+        ? "Code Diff"
+        : diffResult.source === "file_patches"
+          ? "Code Diff (fallback: changed file patches summary)"
+          : "Code Diff (unavailable)";
 
     console.log("[TinyQA Pipeline] Requesting QA command from OpenAI", {
       traceId,
       model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+      diffSource: diffResult.source,
     });
     const qaResponse = await model.invoke([
       new SystemMessage(
         `You are a QA Engineer. Translate this PR description and code diff into a single, strict, 1-2 sentence command for a browser automation bot to test this feature on a staging UI.\n\nThe command should be specific and actionable — tell the bot exactly what to navigate to, what to click, what to type, and what to verify.\nFocus on the most impactful visual/functional change in the PR.\nReturn ONLY the command text, nothing else.`,
       ),
       new HumanMessage(
-        `PR Title: ${prData.title}\n\nPR Description:\n${prData.body || "(no description)"}\n\nCode Diff:\n${truncatedDiff}\n\nTarget URL: ${targetUrl}`,
+        `PR Title: ${prData.title}\n\nPR Description:\n${prData.body || "(no description)"}\n\n${diffPromptLabel}:\n${truncatedDiff}\n\nTarget URL: ${targetUrl}`,
       ),
     ]);
 
@@ -206,7 +178,7 @@ export async function runWebhookPipeline({
         `You are a Senior Code Reviewer for a CI/CD pipeline. The QA Agent visually tested a staging site and observed the following. Based on the observation and the code diff, determine if the test PASSED or FAILED.\n\nYour response MUST follow this format:\n\n## Result: PASSED ✅  (or)  ## Result: FAILED ❌\n\n### Observation\n[Summarize what the QA agent saw on the staging site]\n\n### Analysis\n[Explain whether the visual test matches the expected behavior from the code changes]\n\n### Suggested Fix (if FAILED)\n[If FAILED, provide a specific markdown-formatted code block suggesting the exact fix based on the diff. If PASSED, omit this section.]`,
       ),
       new HumanMessage(
-        `QA Agent's Observation:\n${tinyFishResult.observation || "(No observation returned)"}\n\nPR Diff:\n${truncatedDiff}\n\nTest Command Given:\n${testCommand}`,
+        `QA Agent's Observation:\n${tinyFishResult.observation || "(No observation returned)"}\n\n${diffPromptLabel}:\n${truncatedDiff}\n\nTest Command Given:\n${testCommand}`,
       ),
     ]);
 
@@ -467,4 +439,205 @@ async function postGitHubComment(
     console.error("[TinyQA] Failed to post GitHub comment:", err);
     return null;
   }
+}
+
+async function fetchPullRequestDiff({
+  octokit,
+  project,
+  prNumber,
+  traceId,
+}: {
+  octokit: Octokit;
+  project: Project;
+  prNumber: number;
+  traceId: string;
+}): Promise<{ diff: string; source: "raw_diff" | "file_patches" | "unavailable" }> {
+  console.log("[TinyQA Pipeline] Fetching PR diff via Octokit", {
+    traceId,
+    repo: `${project.repo_owner}/${project.repo_name}`,
+    prNumber,
+  });
+
+  try {
+    const response = await octokit.request(
+      "GET /repos/{owner}/{repo}/pulls/{pull_number}",
+      {
+        owner: project.repo_owner,
+        repo: project.repo_name,
+        pull_number: prNumber,
+        headers: {
+          accept: "application/vnd.github.v3.diff",
+          "x-github-api-version": "2022-11-28",
+        },
+      },
+    );
+
+    const diff =
+      typeof response.data === "string"
+        ? response.data
+        : JSON.stringify(response.data ?? "");
+    if (diff.trim().length > 0) {
+      return { diff, source: "raw_diff" };
+    }
+
+    console.warn("[TinyQA Pipeline] Raw diff response was empty", {
+      traceId,
+      prNumber,
+    });
+  } catch (error) {
+    const details = formatGitHubErrorDetails(error);
+    console.warn("[TinyQA Pipeline] Raw diff fetch failed", {
+      traceId,
+      prNumber,
+      ...details,
+    });
+  }
+
+  console.warn("[TinyQA Pipeline] Falling back to PR file patches summary", {
+    traceId,
+    prNumber,
+  });
+  const files = await fetchPullRequestFiles({
+    octokit,
+    project,
+    prNumber,
+    traceId,
+  });
+
+  if (files.length === 0) {
+    return {
+      diff: "PR diff unavailable. No changed file patches could be retrieved.",
+      source: "unavailable",
+    };
+  }
+
+  return {
+    diff: buildFilePatchesSummary(files),
+    source: "file_patches",
+  };
+}
+
+async function fetchPullRequestFiles({
+  octokit,
+  project,
+  prNumber,
+  traceId,
+}: {
+  octokit: Octokit;
+  project: Project;
+  prNumber: number;
+  traceId: string;
+}): Promise<Array<Record<string, unknown>>> {
+  const files: Array<Record<string, unknown>> = [];
+  let page = 1;
+
+  while (true) {
+    try {
+      const response = await octokit.pulls.listFiles({
+        owner: project.repo_owner,
+        repo: project.repo_name,
+        pull_number: prNumber,
+        per_page: 100,
+        page,
+      });
+
+      const pageFiles = response.data as Array<Record<string, unknown>>;
+      files.push(...pageFiles);
+
+      if (pageFiles.length < 100) {
+        break;
+      }
+
+      page += 1;
+    } catch (error) {
+      const details = formatGitHubErrorDetails(error);
+      console.warn("[TinyQA Pipeline] PR file listing failed", {
+        traceId,
+        prNumber,
+        page,
+        ...details,
+      });
+      break;
+    }
+  }
+
+  return files;
+}
+
+function buildFilePatchesSummary(files: Array<Record<string, unknown>>): string {
+  const sections = files.map((file) => {
+    const filename =
+      typeof file.filename === "string" ? file.filename : "(unknown file)";
+    const status = typeof file.status === "string" ? file.status : "unknown";
+    const additions =
+      typeof file.additions === "number" ? String(file.additions) : "unknown";
+    const deletions =
+      typeof file.deletions === "number" ? String(file.deletions) : "unknown";
+    const changes =
+      typeof file.changes === "number" ? String(file.changes) : "unknown";
+    const patch =
+      typeof file.patch === "string"
+        ? file.patch
+        : "(patch omitted or unavailable from GitHub)";
+
+    return [
+      `File: ${filename}`,
+      `Status: ${status}`,
+      `Additions: ${additions}`,
+      `Deletions: ${deletions}`,
+      `Changes: ${changes}`,
+      "Patch:",
+      patch,
+    ].join("\n");
+  });
+
+  return sections.join("\n\n---\n\n");
+}
+
+function formatGitHubErrorDetails(error: unknown): {
+  status: number | null;
+  message: string;
+  responseBodyPreview: string | null;
+} {
+  if (typeof error === "object" && error !== null) {
+    const maybeError = error as {
+      status?: unknown;
+      message?: unknown;
+      response?: {
+        data?: unknown;
+      };
+    };
+
+    const status =
+      typeof maybeError.status === "number" ? maybeError.status : null;
+    const message =
+      typeof maybeError.message === "string"
+        ? maybeError.message
+        : String(error);
+    const responseBodyPreview =
+      maybeError.response?.data !== undefined
+        ? stringifyForLog(maybeError.response.data)
+        : null;
+
+    return {
+      status,
+      message,
+      responseBodyPreview,
+    };
+  }
+
+  return {
+    status: null,
+    message: String(error),
+    responseBodyPreview: null,
+  };
+}
+
+function stringifyForLog(value: unknown): string {
+  const serialized =
+    typeof value === "string" ? value : JSON.stringify(value ?? null);
+
+  return serialized.length > MAX_GITHUB_ERROR_LOG_LENGTH
+    ? `${serialized.slice(0, MAX_GITHUB_ERROR_LOG_LENGTH)}... [truncated]`
+    : serialized;
 }

@@ -174,7 +174,7 @@ export default function DashboardPage() {
               <input
                 id="repoOwner"
                 type="text"
-                placeholder="e.g. david-ocbc"
+                placeholder="e.g. mikio31"
                 value={repoOwner}
                 onChange={(e) => setRepoOwner(e.target.value)}
                 required
@@ -299,11 +299,10 @@ export default function DashboardPage() {
                       GitHub App
                     </span>
                     <span
-                      className={`text-[11px] font-semibold ${
-                        project.github_installation_id && project.github_repository_id
+                      className={`text-[11px] font-semibold ${project.github_installation_id && project.github_repository_id
                           ? "text-emerald-300"
                           : "text-amber-300"
-                      }`}
+                        }`}
                     >
                       {project.github_installation_id && project.github_repository_id
                         ? "Connected"

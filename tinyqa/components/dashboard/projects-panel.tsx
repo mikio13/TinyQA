@@ -165,7 +165,7 @@ export function DashboardProjectsPanel() {
               <input
                 id="repoOwner"
                 type="text"
-                placeholder="e.g. david-ocbc"
+                placeholder="e.g. mikio31"
                 value={repoOwner}
                 onChange={(e) => setRepoOwner(e.target.value)}
                 required
