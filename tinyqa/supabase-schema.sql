@@ -11,7 +11,6 @@ create table if not exists projects (
   repo_owner text not null,
   repo_name text not null,
   staging_url text not null,
-  github_pat text,
   github_installation_id bigint,
   github_repository_id bigint,
   github_repository_node_id text,
@@ -21,7 +20,6 @@ create table if not exists projects (
 alter table projects add column if not exists github_installation_id bigint;
 alter table projects add column if not exists github_repository_id bigint;
 alter table projects add column if not exists github_repository_node_id text;
-alter table projects alter column github_pat drop not null;
 
 create table if not exists runs (
   id uuid primary key default uuid_generate_v4(),
@@ -50,25 +48,9 @@ create table if not exists runs (
   updated_at timestamptz default now()
 );
 
-create table if not exists webhook_jobs (
-  id uuid primary key default uuid_generate_v4(),
-  project_id uuid references projects(id) on delete cascade not null,
-  mode text not null check (mode in ('legacy_project_pat', 'github_app')),
-  github_event text,
-  github_delivery_id text,
-  payload jsonb not null,
-  status text not null default 'pending' check (status in ('pending', 'processing', 'done', 'failed')),
-  attempts integer not null default 0,
-  last_error text,
-  processed_at timestamptz,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
-);
-
 -- Row-Level Security
 alter table projects enable row level security;
 alter table runs enable row level security;
-alter table webhook_jobs enable row level security;
 
 create policy "Users can view own runs"
   on runs for select
@@ -86,17 +68,6 @@ create policy "Users can delete own runs"
   on runs for delete
   using (auth.uid() = user_id);
 
-create policy "Users can view own webhook jobs"
-  on webhook_jobs for select
-  using (
-    exists (
-      select 1
-      from projects
-      where projects.id = webhook_jobs.project_id
-        and projects.user_id = auth.uid()
-    )
-  );
-
 -- Indexes
 create index if not exists idx_projects_user_id on projects(user_id);
 create unique index if not exists idx_projects_installation_repo
@@ -107,9 +78,4 @@ create index if not exists idx_runs_project_id on runs(project_id);
 create index if not exists idx_runs_created_at on runs(created_at desc);
 create unique index if not exists idx_runs_project_delivery
   on runs(project_id, github_delivery_id)
-  where github_delivery_id is not null;
-create index if not exists idx_webhook_jobs_pending
-  on webhook_jobs(status, created_at);
-create unique index if not exists idx_webhook_jobs_delivery
-  on webhook_jobs(github_delivery_id)
   where github_delivery_id is not null;

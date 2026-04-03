@@ -1,13 +1,12 @@
 # TinyQA
 
-TinyQA is a Next.js app for webhook-driven PR verification. It receives GitHub pull request events, gathers PR context and diffs through a GitHub App installation, generates a QA goal with OpenAI, runs a TinyFish browser session against a staging URL, and stores the resulting run records in Supabase.
+TinyQA is a Next.js app for webhook-driven PR verification. It receives GitHub pull request events through a GitHub App installation, gathers PR context and diffs, generates a QA goal with OpenAI, runs a TinyFish browser session against a staging URL, and stores run records in Supabase.
 
 ## What the app currently includes
 
 - Supabase-backed TinyQA user accounts and dashboard access
 - project registration with repo owner, repo name, and staging URL
 - GitHub App webhook handling at `/api/github/webhook`
-- legacy PAT webhook support at `/api/webhook?project_id=<project-id>`
 - live preview UI at `/dashboard/live-preview`
 - run history UI at `/dashboard/runs`
 - TinyFish SSE-based execution and screenshot/result persistence
@@ -28,17 +27,11 @@ TinyQA is a Next.js app for webhook-driven PR verification. It receives GitHub p
 - `/auth/forgot-password`
 - `/auth/update-password`
 - `/api/github/webhook`
-  Preferred GitHub App webhook endpoint
-- `/api/webhook`
-  Legacy repo webhook endpoint for PAT mode
+  GitHub App webhook endpoint
 - `/api/live-preview/stream`
   TinyFish live preview proxy route
 - `/api/runs`
   Authenticated run listing API
-- `/api/insights`
-  Authenticated dashboard insights API
-- `/api/internal/process-webhook-jobs`
-  Internal worker trigger route
 
 ## Architecture
 
@@ -56,8 +49,6 @@ The important boundary is:
 TinyQA does not currently use GitHub OAuth for end-user login, and it does not store GitHub user refresh tokens.
 
 ## GitHub App flow
-
-The current GitHub App flow is:
 
 1. A user signs into TinyQA and creates a project with repo owner, repo name, and staging URL.
 2. The user installs the TinyQA GitHub App on the target repository or organization.
@@ -102,7 +93,6 @@ TINYFISH_API_KEY=your_tinyfish_key
 GITHUB_APP_ID=your_github_app_id
 GITHUB_APP_PRIVATE_KEY=your_github_app_private_key_pem
 GITHUB_APP_WEBHOOK_SECRET=your_github_app_webhook_secret
-WEBHOOK_WORKER_SECRET=your_internal_worker_secret
 ```
 
 Notes:
@@ -110,7 +100,6 @@ Notes:
 - `SUPABASE_SERVICE_ROLE_KEY` is required for server-side webhook and run persistence
 - `OPENAI_MODEL` is optional and defaults to `gpt-4o-mini`
 - `TINYFISH_API_KEY` is required for real TinyFish execution
-- `WEBHOOK_WORKER_SECRET` is only needed if you plan to trigger `/api/internal/process-webhook-jobs`
 - GitHub App credentials belong to the TinyQA service, not to the users who install the app
 
 ## Local development
@@ -135,8 +124,7 @@ For local webhook demos, exposing your local app with ngrok is a reasonable setu
 
 - `/dashboard/*` routes require a TinyQA user session
 - `/api/github/webhook` is public because GitHub must reach it
-- `/api/webhook` is public because legacy repo webhooks must reach it
-- authenticated API routes such as `/api/runs` and `/api/insights` require a Supabase session
+- authenticated API routes such as `/api/runs` and `/api/live-preview/stream` require a Supabase session
 
 ## Current status
 
@@ -147,5 +135,3 @@ This repo is still in active development. The main product path today is:
 - receive webhook events
 - run the TinyFish/OpenAI verification pipeline
 - inspect results in the TinyQA dashboard
-
-Legacy PAT mode still exists in the codebase, but GitHub App mode is the preferred path.

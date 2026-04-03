@@ -1,14 +1,14 @@
 import { after, NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin-client";
 import {
   createInstallationAccessToken,
   verifyGitHubWebhookSignature,
-} from "@/lib/github-app";
+} from "@/features/github/server/github-app.server";
 import {
   isAcceptedPullRequestEvent,
   runWebhookPipeline,
-} from "@/lib/github-webhook-pipeline";
-import type { Project, WebhookPayload } from "@/lib/types";
+} from "@/features/github/server/webhook-pipeline.server";
+import { createAdminClient } from "@/lib/supabase/admin-client";
+import type { Project, WebhookPayload } from "@/types/domain";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;

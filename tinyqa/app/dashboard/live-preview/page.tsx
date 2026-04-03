@@ -1,4 +1,4 @@
-import { LivePreviewClient } from "./live-preview-client";
+import { LivePreviewClient } from "@/features/live-preview/components/live-preview.client";
 
 export default async function LivePreviewPage({
   searchParams,

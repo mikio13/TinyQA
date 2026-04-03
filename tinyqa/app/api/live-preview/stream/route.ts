@@ -4,10 +4,10 @@ import {
   persistTinyFishLifecycleEvent,
   type TinyFishSseEvent,
   updateRun,
-} from "@/lib/runs";
+} from "@/features/runs/server/runs.server";
 import { createAdminClient } from "@/lib/supabase/admin-client";
 import { createClient } from "@/lib/supabase/server";
-import type { Project } from "@/lib/types";
+import type { Project } from "@/types/domain";
 
 export const dynamic = "force-dynamic";
 

@@ -1,7 +1,7 @@
-import { AuthButton } from "@/components/auth-button";
-import { DashboardNav } from "@/components/dashboard-nav";
+import { DashboardNav } from "@/components/layout/dashboard-nav";
+import { AuthButton } from "@/features/auth/components/auth-button";
+import { hasEnvVars } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
-import { hasEnvVars } from "@/lib/utils";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";

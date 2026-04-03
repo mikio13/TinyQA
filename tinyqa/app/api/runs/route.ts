@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { mapRunRow } from "@/lib/runs";
+import { mapRunRow } from "@/features/runs/server/runs.server";
 import { createClient } from "@/lib/supabase/server";
-import type { RunListResponse } from "@/lib/types";
+import type { RunListResponse } from "@/types/domain";
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
