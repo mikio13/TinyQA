@@ -1,6 +1,6 @@
 # TinyQA
 
-TinyQA is a Next.js app for webhook-driven PR verification. It receives GitHub pull request events through a GitHub App installation, gathers PR context and diffs, generates a QA goal with OpenAI, runs a TinyFish browser session against a staging URL, and stores run records in Supabase.
+TinyQA is a Next.js app for webhook-driven PR verification. It receives GitHub pull request events through a GitHub App installation, gathers PR context and diffs, generates a QA goal with Gemini, runs a TinyFish browser session against a staging URL, and stores run records in Supabase.
 
 ## What the app currently includes
 
@@ -63,7 +63,7 @@ TinyQA does not currently use GitHub OAuth for end-user login, and it does not s
 8. TinyQA creates a GitHub App JWT using `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY`.
 9. TinyQA exchanges that JWT for a fresh short-lived installation access token.
 10. TinyQA passes that installation token to Octokit and other GitHub API requests to fetch PR data, fetch diffs, and post comments.
-11. TinyQA runs the TinyFish/OpenAI pipeline and stores the run results in Supabase.
+11. TinyQA runs the TinyFish/Gemini pipeline and stores the run results in Supabase.
 
 Installation gives TinyQA permission to act on the repo, but the webhook payload does not contain a reusable installation token. TinyQA mints a fresh installation token on demand for each GitHub API session.
 
@@ -87,8 +87,8 @@ Create `tinyqa/.env.local` and configure the values below.
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-OPENAI_API_KEY=your_openai_key
-OPENAI_MODEL=gpt-4o-mini
+GEMINI_API_KEY=your_gemini_key
+GEMINI_MODEL=gemini-2.5-flash
 TINYFISH_API_KEY=your_tinyfish_key
 GITHUB_APP_ID=your_github_app_id
 GITHUB_APP_PRIVATE_KEY=your_github_app_private_key_pem
@@ -98,7 +98,8 @@ GITHUB_APP_WEBHOOK_SECRET=your_github_app_webhook_secret
 Notes:
 
 - `SUPABASE_SERVICE_ROLE_KEY` is required for server-side webhook and run persistence
-- `OPENAI_MODEL` is optional and defaults to `gpt-4o-mini`
+- `GEMINI_API_KEY` is required for Gemini-based QA command and review generation
+- `GEMINI_MODEL` is optional and defaults to `gemini-2.5-flash`
 - `TINYFISH_API_KEY` is required for real TinyFish execution
 - GitHub App credentials belong to the TinyQA service, not to the users who install the app
 
@@ -133,5 +134,5 @@ This repo is still in active development. The main product path today is:
 - register a project in the dashboard
 - install the GitHub App on the target repo
 - receive webhook events
-- run the TinyFish/OpenAI verification pipeline
+- run the TinyFish/Gemini verification pipeline
 - inspect results in the TinyQA dashboard

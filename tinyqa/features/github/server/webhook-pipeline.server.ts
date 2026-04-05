@@ -13,7 +13,7 @@ import {
 import {
   generateFinalReview,
   generateQaCommand,
-} from "@/features/github/server/pipeline/openai.server";
+} from "@/features/github/server/pipeline/llm.server";
 import { runTinyFishSse } from "@/features/github/server/pipeline/tinyfish.server";
 
 const MAX_DIFF_LENGTH = 8000;
